@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>AJRM Marine GPS Integrity</title>
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <main class="shell">
+      <header>
+        <img src="./icon.svg" alt="" class="icon">
+        <div>
+          <h1>AJRM Marine GPS Integrity</h1>
+          <p id="subtitle">Checking navigation data...</p>
+        </div>
+      </header>
+      <section id="stateCard" class="state-card">
+        <div id="trust" class="trust">Loading</div>
+        <div id="summary" class="summary"></div>
+      </section>
+      <section class="grid">
+        <div>
+          <h2>GPS</h2>
+          <dl id="gpsFacts"></dl>
+        </div>
+        <div>
+          <h2>Dead reckoning</h2>
+          <dl id="drFacts"></dl>
+        </div>
+        <div>
+          <h2>Detected errors</h2>
+          <dl id="counterFacts"></dl>
+        </div>
+      </section>
+      <section>
+        <h2>Reasons</h2>
+        <ul id="reasons"></ul>
+      </section>
+    </main>
+    <script src="./app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="AJRM Marine GPS Integrity">
+  <rect width="120" height="120" rx="24" fill="#0f172a"/>
+  <circle cx="60" cy="60" r="42" fill="none" stroke="#38bdf8" stroke-width="8"/>
+  <path d="M60 24v20M60 76v20M24 60h20M76 60h20" stroke="#e2e8f0" stroke-width="8" stroke-linecap="round"/>
+  <path d="M60 34l16 42-16-8-16 8z" fill="#22c55e"/>
+</svg>

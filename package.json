@@ -1,0 +1,47 @@
+{
+  "name": "signalk-ajrm-marine-gps-integrity",
+  "version": "0.5.0",
+  "description": "GNSS integrity monitor for AJRM Marine Suite.",
+  "main": "plugin/index.js",
+  "scripts": {
+    "test": "node --test && node --check plugin/index.js && node --check public/app.js"
+  },
+  "keywords": [
+    "signalk-node-server-plugin",
+    "signalk-webapp",
+    "signalk-category-navigation",
+    "gps",
+    "gnss",
+    "dead-reckoning",
+    "watchkeeper",
+    "signal-k",
+    "signalk",
+    "ajrm-marine-suite",
+    "marine",
+    "navigation"
+  ],
+  "author": "Anthony McDonald, with assistance from William McAusland",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ajrm-marine-suite/signalk-ajrm-marine-gps-integrity.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ajrm-marine-suite/signalk-ajrm-marine-gps-integrity/issues"
+  },
+  "homepage": "https://github.com/ajrm-marine-suite/signalk-ajrm-marine-gps-integrity#readme",
+  "engines": {
+    "node": ">=20"
+  },
+  "files": [
+    "plugin",
+    "public",
+    "README.md",
+    "LICENSE"
+  ],
+  "signalk-plugin-enabled-by-default": true,
+  "signalk": {
+    "displayName": "AJRM Marine GPS Integrity",
+    "appIcon": "./icon.svg"
+  }
+}
