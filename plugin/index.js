@@ -60,6 +60,8 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
   let activeNotificationRevision = null;
   let unsubscribes = [];
   let activeReplayKey = null;
+  let activeReplayRate = 1;
+  let lastReplayClock = null;
 
   plugin.id = PLUGIN_ID;
   plugin.name = "AJRM Marine GPS Integrity";
@@ -116,6 +118,8 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
     activeNotificationEventId = null;
     activeNotificationRevision = null;
     activeReplayKey = null;
+    activeReplayRate = 1;
+    lastReplayClock = null;
     if (options.enabled) {
       subscribeToLoggerPlayback();
       timer = setInterval(evaluateAndPublish, options.updateIntervalMs);
@@ -141,6 +145,8 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
     activeNotificationEventId = null;
     activeNotificationRevision = null;
     activeReplayKey = null;
+    activeReplayRate = 1;
+    lastReplayClock = null;
     publishValue(STATE_PATH, null);
     publishValues(PROJECTION_PATHS.map((path) => ({ path, value: null })));
     publishValue(NOTIFICATION_PATH, null);
@@ -195,6 +201,8 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
   function handleLoggerPlaybackValue(value = {}) {
     if (!value || typeof value !== "object" || !value.playing) {
       activeReplayKey = null;
+      activeReplayRate = 1;
+      lastReplayClock = null;
       return;
     }
     const replayKey = [
@@ -206,7 +214,9 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
     if (replayKey && replayKey !== activeReplayKey) {
       resetRuntimeStateForReplay();
       activeReplayKey = replayKey;
+      lastReplayClock = null;
     }
+    activeReplayRate = replayRateFromPlaybackValue(value);
   }
 
   function resetRuntimeStateForReplay() {
@@ -218,12 +228,45 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
     activeNotificationRevision = null;
   }
 
+  function replayRateFromPlaybackValue(value) {
+    const explicitRate = normalizeReplayRate(value.rate);
+    if (explicitRate !== null) {
+      lastReplayClock = replayClock(value);
+      return explicitRate;
+    }
+    const clock = replayClock(value);
+    if (!clock || !lastReplayClock) {
+      lastReplayClock = clock;
+      return activeReplayRate > 1 ? activeReplayRate : 20;
+    }
+    const sourceElapsed = clock.sourceMs - lastReplayClock.sourceMs;
+    const wallElapsed = clock.wallMs - lastReplayClock.wallMs;
+    lastReplayClock = clock;
+    if (sourceElapsed > 0 && wallElapsed > 0) {
+      return Math.min(500, Math.max(1, sourceElapsed / wallElapsed));
+    }
+    return activeReplayRate > 1 ? activeReplayRate : 20;
+  }
+
+  function replayClock(value) {
+    const sourceMs = Date.parse(value?.capturedAt);
+    if (!Number.isFinite(sourceMs)) return null;
+    return { sourceMs, wallMs: Date.now() };
+  }
+
+  function normalizeReplayRate(value) {
+    if (String(value || "").toLowerCase() === "max") return null;
+    const rate = Number(value);
+    return Number.isFinite(rate) && rate > 0 ? rate : 1;
+  }
+
   function evaluateAndPublish() {
     updateReplayBoundaryFromSignalK();
     const sample = sampleFromSignalK(app);
     latestSample = sample;
     latestState = evaluateNavigationIntegrity(sample, latestState, {
       ...options,
+      replayTimeScale: activeReplayRate,
       distanceDisplayUnit: preferredDistanceUnit(),
     });
     publishValues([
@@ -244,6 +287,7 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
       version: packageInfo.version,
       enabled: options.enabled,
       alertsEnabled: options.alertsEnabled,
+      replayTimeScale: activeReplayRate,
       statePath: `vessels.self.${STATE_PATH}`,
       notificationPath: `vessels.self.${NOTIFICATION_PATH}`,
       trustedPrefix: `vessels.self.${TRUSTED_PREFIX}`,
@@ -252,6 +296,7 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
       sample: latestSample || sampleFromSignalK(app),
       state: latestState || evaluateNavigationIntegrity(sampleFromSignalK(app), null, {
         ...options,
+        replayTimeScale: activeReplayRate,
         distanceDisplayUnit: preferredDistanceUnit(),
       }),
     };

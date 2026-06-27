@@ -381,6 +381,24 @@ test("realigns integrity DR after the configured interval", () => {
   assert.equal(state.integrityDeadReckoning.ageSeconds, 0);
 });
 
+test("scales position jump threshold during accelerated replay", () => {
+  const first = evaluateNavigationIntegrity({
+    timestamp: "2026-06-22T12:00:00.000Z",
+    position: { latitude: 56, longitude: -5 },
+  });
+  const second = evaluateNavigationIntegrity({
+    timestamp: "2026-06-22T12:00:01.000Z",
+    position: _private.destinationMeters({ latitude: 56, longitude: -5 }, 30, 0),
+  }, first, {
+    maxBoatSpeedKnots: 20,
+    replayTimeScale: 5,
+  });
+
+  assert.equal(second.trust, "normal");
+  assert.equal(second.acceptedGps, true);
+  assert.equal(second.counters.positionJumps, 0);
+});
+
 test("operational DR propagates only after GPS is unavailable", () => {
   const first = evaluateNavigationIntegrity({
     timestamp: "2026-06-22T12:00:00.000Z",

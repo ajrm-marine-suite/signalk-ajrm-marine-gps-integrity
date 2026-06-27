@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.3
+
+- Scale GPS jump checks and dead-reckoning propagation by AJRM Marine Logger
+  replay rate, so accelerated replay is judged against source-time motion
+  rather than wall-clock motion.
+
 ## 0.5.2
 
 - Also detect AJRM Marine Logger replay boundaries from the Signal K playback

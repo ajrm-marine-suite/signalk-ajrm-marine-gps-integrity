@@ -54,7 +54,7 @@ function evaluateNavigationIntegrity(sample, previousState = null, options = {})
     const elapsedSeconds = Math.max(0.001, (nowMs - timestampMs(lastTrustedFix.timestamp)) / 1000);
     const distance = distanceMeters(lastTrustedFix.position, position);
     const impliedSpeed = distance / elapsedSeconds;
-    if (impliedSpeed > settings.maxBoatSpeedKnots * KNOTS_TO_MPS) {
+    if (impliedSpeed > settings.maxBoatSpeedKnots * settings.replayTimeScale * KNOTS_TO_MPS) {
       const candidateAccepted = isPlausibleContinuation(pendingGpsCandidate, position, nowMs, settings);
       if (candidateAccepted) {
         trust = maxTrust(trust, "degraded");
@@ -320,7 +320,13 @@ function propagateDeadReckoning(previousState, sample, settings, nowMs) {
 function propagateDeadReckoningFrom(previousPosition, previousTimestamp, sample, motionSample, settings, nowMs) {
   const previousTime = timestampMs(previousTimestamp);
   if (!previousPosition || !previousTime) return null;
-  const elapsedSeconds = Math.max(0, Math.min(settings.maxPropagationSeconds, (nowMs - previousTime) / 1000));
+  const elapsedSeconds = Math.max(
+    0,
+    Math.min(
+      settings.maxPropagationSeconds * settings.replayTimeScale,
+      ((nowMs - previousTime) / 1000) * settings.replayTimeScale,
+    ),
+  );
   if (elapsedSeconds <= 0) return { position: previousPosition };
 
   const effectiveSample = motionSample || sample;
@@ -486,6 +492,7 @@ function normalizeOptions(value = {}) {
     minReliableSogMps: clampNumber(value.minReliableSogMps, 0, 2, 0.35),
     integrityDrRealignSeconds: clampNumber(value.integrityDrRealignSeconds, 60, 86400, 1800),
     distanceDisplayUnit: normalizeDistanceUnit(value.distanceDisplayUnit),
+    replayTimeScale: clampNumber(value.replayTimeScale, 1, 500, 1),
   };
 }
 
