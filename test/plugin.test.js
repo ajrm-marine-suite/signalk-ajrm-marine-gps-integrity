@@ -185,10 +185,60 @@ test("publishes trusted GPS and dead-reckoning projection paths", async () => {
   assert.equal(values["plugins.ajrmMarineGpsIntegrity.deadReckoning.operational.source"], "gps-locked");
   assert.deepEqual(values["plugins.ajrmMarineGpsIntegrity.deadReckoning.integrity.position"], { latitude: 56, longitude: -5 });
   assert.equal(values["plugins.ajrmMarineGpsIntegrity.deadReckoning.integrity.source"], "gps-realigned");
-  assert.equal(values["plugins.ajrmMarineGpsIntegrity.deadReckoning.integrity.realignIntervalSeconds"], 1800);
+  assert.equal(values["plugins.ajrmMarineGpsIntegrity.deadReckoning.integrity.realignIntervalSeconds"], 300);
   assert.equal(values["plugins.ajrmMarineGpsIntegrity.counters.evaluations"], 1);
   assert.equal(values["plugins.ajrmMarineGpsIntegrity.counters.acceptedFixes"], 1);
   assert.equal(values["plugins.ajrmMarineGpsIntegrity.counters.positionJumps"], 0);
+});
+
+test("settings route persists independent DR realign interval", async () => {
+  let savedOptions = null;
+  const plugin = pluginFactory({
+    getSelfPath() {},
+    handleMessage() {},
+    savePluginOptions(options, callback) {
+      savedOptions = options;
+      callback();
+    },
+    setPluginStatus() {},
+  });
+  const routes = new Map();
+  plugin.registerWithRouter({
+    get(path, handler) {
+      routes.set(`GET ${path}`, handler);
+    },
+    put(path, handler) {
+      routes.set(`PUT ${path}`, handler);
+    },
+  });
+  plugin.start({ updateIntervalMs: 500 });
+
+  let statusCode = 200;
+  let body = null;
+  await routes.get("PUT /settings")(
+    {
+      body: {
+        alertsEnabled: false,
+        integrityDrRealignSeconds: 120,
+      },
+    },
+    {
+      status(code) {
+        statusCode = code;
+        return this;
+      },
+      json(value) {
+        body = value;
+      },
+    },
+  );
+  plugin.stop();
+
+  assert.equal(statusCode, 200);
+  assert.equal(body.alertsEnabled, false);
+  assert.equal(body.integrityDrRealignSeconds, 120);
+  assert.equal(savedOptions.alertsEnabled, false);
+  assert.equal(savedOptions.integrityDrRealignSeconds, 120);
 });
 
 test("clears trusted GPS projection when a jump is rejected", async () => {

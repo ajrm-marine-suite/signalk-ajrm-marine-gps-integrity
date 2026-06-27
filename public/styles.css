@@ -68,13 +68,24 @@ section:not(.grid) {
   gap: 12px;
 }
 
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid #dbe3ea;
+}
+
 .switch-row input {
   width: 24px;
   height: 24px;
   flex: 0 0 auto;
 }
 
-.switch-row span {
+.switch-row span,
+.setting-row > span:first-child {
   display: grid;
   gap: 3px;
 }
@@ -87,6 +98,24 @@ section:not(.grid) {
 .settings-status {
   min-height: 1.3em;
   margin-top: 8px;
+}
+
+.number-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #526475;
+  font-weight: 700;
+}
+
+.number-control input {
+  width: 5.5rem;
+  padding: 8px 10px;
+  border: 1px solid #9fb0bf;
+  border-radius: 6px;
+  color: #14202a;
+  font: inherit;
+  font-weight: 700;
 }
 
 .trust {

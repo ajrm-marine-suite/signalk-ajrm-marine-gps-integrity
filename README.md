@@ -60,9 +60,11 @@ The flat `deadReckoning.*` paths remain as compatibility aliases for operational
 DR. Operational DR is locked to accepted GPS while GPS is healthy, then
 propagates from the last trusted fix when GPS is lost or rejected. Integrity DR
 is independent between realignments and is used to detect slow spoof-like drift.
-Its default realign interval is 1800 seconds (30 minutes), so live testing can
-start wide; it can be reduced later, for example to 300 seconds (5 minutes), if
-the real-world instruments drift too quickly.
+Its default realign interval is 300 seconds (5 minutes). The GPS Integrity page
+labels this as the **Spoofing check reset interval**: it controls how often the
+independent DR comparison track is reset to trusted GPS while GPS is healthy.
+Shorter intervals reduce normal drift warnings; longer intervals give slow
+spoofing more time to show as a GPS-versus-DR mismatch.
 
 The counters reset when the plugin starts, but do not begin incrementing until
 the first trusted GPS fix. They are intended for voyage review and soak testing:

@@ -490,7 +490,7 @@ function normalizeOptions(value = {}) {
     positionNoiseAllowanceMeters: clampNumber(value.positionNoiseAllowanceMeters, 1, 200, 20),
     minReliableStwMps: clampNumber(value.minReliableStwMps, 0, 2, 0.25),
     minReliableSogMps: clampNumber(value.minReliableSogMps, 0, 2, 0.35),
-    integrityDrRealignSeconds: clampNumber(value.integrityDrRealignSeconds, 60, 86400, 1800),
+    integrityDrRealignSeconds: clampNumber(value.integrityDrRealignSeconds, 60, 86400, 300),
     distanceDisplayUnit: normalizeDistanceUnit(value.distanceDisplayUnit),
     replayTimeScale: clampNumber(value.replayTimeScale, 1, 500, 1),
   };

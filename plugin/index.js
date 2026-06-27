@@ -102,8 +102,10 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
       gpsLostSeconds: { type: "number", title: "GPS lost age", default: 15 },
       integrityDrRealignSeconds: {
         type: "number",
-        title: "Independent DR realign interval",
-        default: 1800,
+        title: "Spoofing check reset interval",
+        description:
+          "How often the independent dead-reckoning comparison track is reset to trusted GPS while GPS is healthy. Shorter reduces normal drift warnings; longer is stricter for slow spoofing.",
+        default: 300,
         minimum: 60,
         maximum: 86400,
       },
@@ -161,6 +163,7 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
         options = normalizeOptions({
           ...options,
           alertsEnabled: req.body?.alertsEnabled,
+          integrityDrRealignSeconds: req.body?.integrityDrRealignSeconds,
         });
         await savePluginOptions(options);
         if (!options.alertsEnabled) publishValue(NOTIFICATION_PATH, null);
@@ -288,6 +291,7 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
       version: packageInfo.version,
       enabled: options.enabled,
       alertsEnabled: options.alertsEnabled,
+      integrityDrRealignSeconds: options.integrityDrRealignSeconds,
       replayTimeScale: activeReplayRate,
       statePath: `vessels.self.${STATE_PATH}`,
       notificationPath: `vessels.self.${NOTIFICATION_PATH}`,
@@ -626,9 +630,15 @@ function normalizeOptions(value = {}) {
     warningDrDiscrepancyMeters: value.warningDrDiscrepancyMeters,
     alarmDrDiscrepancyMeters: value.alarmDrDiscrepancyMeters,
     gpsLostSeconds: value.gpsLostSeconds,
-    integrityDrRealignSeconds: value.integrityDrRealignSeconds,
+    integrityDrRealignSeconds: clampNumber(value.integrityDrRealignSeconds, 60, 86400, 300),
     distanceDisplayUnit: value.distanceDisplayUnit,
   };
+}
+
+function clampNumber(value, min, max, fallback) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.min(max, Math.max(min, number));
 }
 
 module.exports._private = {

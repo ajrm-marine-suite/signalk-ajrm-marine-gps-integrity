@@ -8,6 +8,7 @@ const counterFacts = document.querySelector("#counterFacts");
 const reasons = document.querySelector("#reasons");
 const stateCard = document.querySelector("#stateCard");
 const alertsEnabled = document.querySelector("#alertsEnabled");
+const integrityRealignMinutes = document.querySelector("#integrityRealignMinutes");
 const settingsStatus = document.querySelector("#settingsStatus");
 let savingSettings = false;
 
@@ -30,6 +31,7 @@ function renderStatus(data) {
   subtitle.textContent = `Provider v${data.version}`;
   if (!savingSettings) {
     alertsEnabled.checked = data.alertsEnabled !== false;
+    integrityRealignMinutes.value = String(Math.round((data.integrityDrRealignSeconds || 300) / 60));
   }
   const counters = state.counters || {};
   const errorCount = (counters.rejectedFixes || 0) + (counters.lostFixes || 0) + (counters.degradedSignals || 0);
@@ -87,28 +89,44 @@ function formatCount(value) {
   return Number.isFinite(Number(value)) ? String(Number(value)) : "0";
 }
 
-alertsEnabled.addEventListener("change", async () => {
+async function saveSettings() {
   savingSettings = true;
   settingsStatus.textContent = "Saving...";
   alertsEnabled.disabled = true;
+  integrityRealignMinutes.disabled = true;
   try {
+    const realignMinutes = Math.round(Number(integrityRealignMinutes.value));
+    const realignSeconds = Math.min(86400, Math.max(60, realignMinutes * 60));
     const response = await fetch(`${apiBase}/settings`, {
       method: "PUT",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({ alertsEnabled: alertsEnabled.checked }),
+      body: JSON.stringify({
+        alertsEnabled: alertsEnabled.checked,
+        integrityDrRealignSeconds: realignSeconds,
+      }),
     });
     const body = await response.json();
     if (!response.ok) throw new Error(body.error || `HTTP ${response.status}`);
     alertsEnabled.checked = body.alertsEnabled !== false;
-    settingsStatus.textContent = alertsEnabled.checked ? "Alerts enabled" : "Alerts disabled";
+    integrityRealignMinutes.value = String(Math.round((body.integrityDrRealignSeconds || 300) / 60));
+    settingsStatus.textContent = `Settings saved. IDR realigns every ${integrityRealignMinutes.value} min.`;
     renderStatus(body);
   } catch (error) {
-    settingsStatus.textContent = error.message || "Unable to save alert setting.";
+    settingsStatus.textContent = error.message || "Unable to save settings.";
     await refresh();
   } finally {
     alertsEnabled.disabled = false;
+    integrityRealignMinutes.disabled = false;
     savingSettings = false;
   }
+}
+
+alertsEnabled.addEventListener("change", async () => {
+  await saveSettings();
+});
+
+integrityRealignMinutes.addEventListener("change", async () => {
+  await saveSettings();
 });
 
 async function refresh() {

@@ -23,6 +23,21 @@
             <small>Diagnostics stay visible when alerts are off.</small>
           </span>
         </label>
+        <label class="setting-row" for="integrityRealignMinutes">
+          <span>
+            <strong>Spoofing check reset interval</strong>
+            <small>
+              GPS is compared with an independent dead-reckoning track. This
+              sets how often that independent track is reset to GPS while GPS is
+              healthy. Shorter reduces normal drift warnings; longer is stricter
+              for slow spoofing.
+            </small>
+          </span>
+          <span class="number-control">
+            <input id="integrityRealignMinutes" type="number" min="1" max="1440" step="1">
+            <span>min</span>
+          </span>
+        </label>
         <div id="settingsStatus" class="settings-status"></div>
       </section>
       <section id="stateCard" class="state-card">
