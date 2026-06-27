@@ -34,14 +34,14 @@ test("chooses a coherent moving navigation source over canonical stationary valu
   const paths = {
     "navigation.position": {
       value: { latitude: 56.211333, longitude: -5.559139 },
-      $source: "vessel-simulator",
+      $source: "stationary-source",
       timestamp: "2026-06-22T17:00:18.490Z",
       values: {
-        "self-track-simulator": {
+        "moving-source": {
           value: { latitude: 56.211222, longitude: -5.550586 },
           timestamp: "2026-06-22T17:00:18.466Z",
         },
-        "vessel-simulator": {
+        "stationary-source": {
           value: { latitude: 56.211333, longitude: -5.559139 },
           timestamp: "2026-06-22T17:00:18.490Z",
         },
@@ -49,32 +49,32 @@ test("chooses a coherent moving navigation source over canonical stationary valu
     },
     "navigation.speedOverGround": {
       value: 0,
-      $source: "vessel-simulator",
+      $source: "stationary-source",
       timestamp: "2026-06-22T17:00:18.490Z",
       values: {
-        "self-track-simulator": { value: 5.14444, timestamp: "2026-06-22T17:00:18.466Z" },
-        "vessel-simulator": { value: 0, timestamp: "2026-06-22T17:00:18.490Z" },
+        "moving-source": { value: 5.14444, timestamp: "2026-06-22T17:00:18.466Z" },
+        "stationary-source": { value: 0, timestamp: "2026-06-22T17:00:18.490Z" },
       },
     },
     "navigation.courseOverGroundTrue": {
       value: 0,
-      $source: "vessel-simulator",
+      $source: "stationary-source",
       values: {
-        "self-track-simulator": { value: Math.PI / 2, timestamp: "2026-06-22T17:00:18.466Z" },
-        "vessel-simulator": { value: 0, timestamp: "2026-06-22T17:00:18.490Z" },
+        "moving-source": { value: Math.PI / 2, timestamp: "2026-06-22T17:00:18.466Z" },
+        "stationary-source": { value: 0, timestamp: "2026-06-22T17:00:18.490Z" },
       },
     },
     "navigation.headingTrue": {
       value: Math.PI / 2,
-      $source: "self-track-simulator",
+      $source: "moving-source",
       values: {
-        "self-track-simulator": { value: Math.PI / 2, timestamp: "2026-06-22T17:00:18.466Z" },
-        "vessel-simulator": { value: 0, timestamp: "2026-06-22T17:00:18.490Z" },
+        "moving-source": { value: Math.PI / 2, timestamp: "2026-06-22T17:00:18.466Z" },
+        "stationary-source": { value: 0, timestamp: "2026-06-22T17:00:18.490Z" },
       },
     },
     "navigation.speedThroughWater": {
       value: 5.14444,
-      $source: "self-track-simulator",
+      $source: "moving-source",
       timestamp: "2026-06-22T17:00:18.466Z",
     },
   };
@@ -83,7 +83,7 @@ test("chooses a coherent moving navigation source over canonical stationary valu
       return paths[path];
     },
   });
-  assert.equal(sample.source, "self-track-simulator");
+  assert.equal(sample.source, "moving-source");
   assert.deepEqual(sample.position, { latitude: 56.211222, longitude: -5.550586 });
   assert.equal(sample.positionTimestamp, "2026-06-22T17:00:18.466Z");
   assert.equal(sample.speedOverGround, 5.14444);

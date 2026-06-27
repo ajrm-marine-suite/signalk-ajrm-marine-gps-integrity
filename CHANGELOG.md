@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.7
+
+- Remove obsolete suite naming from package metadata and test fixtures.
+
 ## 0.5.6
 
 - Add an explicit GPS baseline reset endpoint and page control for deliberate simulator resets, relocation, or confirmed-good GPS recovery.
