@@ -200,6 +200,8 @@ function evaluateNavigationIntegrity(sample, previousState = null, options = {})
     trust,
     previousTrust: previousState?.trust || null,
     previousFixValid: previousState?.gps?.fixValid ?? null,
+    previousDegradedSignal: previousState?.degradedSignalActive === true,
+    previousDrDiscrepancy: previousState?.drDiscrepancyActive === true,
     hadTrustedFix: Boolean(previousState?.lastTrustedFix?.position),
     positionJumpRejected,
     degradedSignal: (
@@ -230,6 +232,11 @@ function evaluateNavigationIntegrity(sample, previousState = null, options = {})
     },
     lastTrustedFix,
     pendingGpsCandidate,
+    degradedSignalActive: (
+      (Number.isFinite(hdop) && hdop > settings.maxHdop) ||
+      (Number.isFinite(satellites) && satellites < settings.minSatellites)
+    ),
+    drDiscrepancyActive: reasons.some((reason) => reason.startsWith("GPS differs from independent dead reckoning")),
     deadReckoning: operationalDeadReckoning,
     operationalDeadReckoning,
     integrityDeadReckoning,
@@ -254,8 +261,8 @@ function updateCounters(previousCounters = {}, event) {
   if (!event.acceptedGps && event.fixValid) counters.rejectedFixes += 1;
   if (event.positionJumpRejected) counters.positionJumps += 1;
   if (isLostEventStart(event)) counters.lostFixes += 1;
-  if (event.degradedSignal) counters.degradedSignals += 1;
-  if (event.drDiscrepancy) counters.drDiscrepancies += 1;
+  if (event.degradedSignal && !event.previousDegradedSignal) counters.degradedSignals += 1;
+  if (event.drDiscrepancy && !event.previousDrDiscrepancy) counters.drDiscrepancies += 1;
   return counters;
 }
 

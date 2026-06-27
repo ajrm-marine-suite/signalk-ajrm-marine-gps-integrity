@@ -268,7 +268,7 @@ test("does not count startup with no GPS as an outage before the first trusted f
   assert.equal(firstFix.counters.lostFixes, 0);
 });
 
-test("counts degraded signal and dead-reckoning discrepancy samples", () => {
+test("counts degraded signal and dead-reckoning discrepancy events", () => {
   const first = evaluateNavigationIntegrity({
     timestamp: "2026-06-22T12:00:00.000Z",
     position: { latitude: 56, longitude: -5 },
@@ -287,6 +287,17 @@ test("counts degraded signal and dead-reckoning discrepancy samples", () => {
   assert.equal(second.counters.acceptedFixes, 2);
   assert.equal(second.counters.degradedSignals, 1);
   assert.equal(second.counters.drDiscrepancies, 1);
+
+  const third = evaluateNavigationIntegrity({
+    timestamp: "2026-06-22T12:00:20.000Z",
+    position: { latitude: 56.0012, longitude: -5 },
+    hdop: 6,
+    satellites: 3,
+  }, second, { maxBoatSpeedKnots: 30, warningDrDiscrepancyMeters: 20, alarmDrDiscrepancyMeters: 500 });
+
+  assert.equal(third.trust, "degraded");
+  assert.equal(third.counters.degradedSignals, 1);
+  assert.equal(third.counters.drDiscrepancies, 1);
 });
 
 test("formats dead-reckoning discrepancy reasons with spoken distance units", () => {
@@ -327,7 +338,7 @@ test("keeps operational DR GPS-locked while integrity DR detects slow spoof drif
   assert.equal(state.trust, "degraded");
   assert.match(state.reasons.join(" "), /independent dead reckoning/);
   assert.doesNotMatch(state.reasons.join(" "), /\d+ m\./);
-  assert.ok(state.counters.drDiscrepancies > 0);
+  assert.equal(state.counters.drDiscrepancies, 1);
   assert.deepEqual(state.deadReckoning.position, state.gps.position);
   assert.deepEqual(state.operationalDeadReckoning.position, state.gps.position);
   assert.ok(state.integrityDeadReckoning.position.longitude < state.gps.position.longitude);

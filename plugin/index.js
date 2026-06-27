@@ -4,6 +4,7 @@ const packageInfo = require("../package.json");
 const { evaluateNavigationIntegrity } = require("./lib/navigation-integrity");
 
 const PLUGIN_ID = "signalk-ajrm-marine-gps-integrity";
+const LOGGER_PLAYBACK_PATH = "plugins.ajrmMarineLogger.playback";
 const STATE_PATH = "plugins.ajrmMarineGpsIntegrity.navigationIntegrity";
 const NOTIFICATION_PATH = "notifications.navigation.gnss.integrity";
 const TRUSTED_PREFIX = "plugins.ajrmMarineGpsIntegrity.trusted";
@@ -57,6 +58,8 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
   let activeNotificationKey = null;
   let activeNotificationEventId = null;
   let activeNotificationRevision = null;
+  let unsubscribes = [];
+  let activeReplayKey = null;
 
   plugin.id = PLUGIN_ID;
   plugin.name = "AJRM Marine GPS Integrity";
@@ -111,7 +114,9 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
     activeNotificationKey = null;
     activeNotificationEventId = null;
     activeNotificationRevision = null;
+    activeReplayKey = null;
     if (options.enabled) {
+      subscribeToLoggerPlayback();
       timer = setInterval(evaluateAndPublish, options.updateIntervalMs);
       evaluateAndPublish();
     }
@@ -120,12 +125,21 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
 
   plugin.stop = () => {
     if (timer) clearInterval(timer);
+    for (const unsubscribe of unsubscribes) {
+      try {
+        unsubscribe();
+      } catch {
+        // Best-effort during shutdown.
+      }
+    }
+    unsubscribes = [];
     timer = null;
     latestState = null;
     lastNotificationSignature = null;
     activeNotificationKey = null;
     activeNotificationEventId = null;
     activeNotificationRevision = null;
+    activeReplayKey = null;
     publishValue(STATE_PATH, null);
     publishValues(PROJECTION_PATHS.map((path) => ({ path, value: null })));
     publishValue(NOTIFICATION_PATH, null);
@@ -138,6 +152,53 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
   };
 
   return plugin;
+
+  function subscribeToLoggerPlayback() {
+    if (!app.subscriptionmanager?.subscribe) return;
+    app.subscriptionmanager.subscribe(
+      {
+        context: "vessels.self",
+        subscribe: [{ path: LOGGER_PLAYBACK_PATH, policy: "instant", format: "delta" }],
+      },
+      unsubscribes,
+      (error) => app.error?.(`[${PLUGIN_ID}] subscription error: ${error}`),
+      handleLoggerPlaybackDelta,
+    );
+  }
+
+  function handleLoggerPlaybackDelta(delta) {
+    for (const update of delta?.updates || []) {
+      const context = update.context || delta.context || "vessels.self";
+      if (context !== "vessels.self") continue;
+      for (const entry of update.values || []) {
+        if (entry.path !== LOGGER_PLAYBACK_PATH) continue;
+        const value = entry.value || {};
+        if (!value.playing) {
+          activeReplayKey = null;
+          continue;
+        }
+        const replayKey = [
+          value.voyageFileName || "",
+          value.displayFileName || "",
+          value.fileName || "",
+          value.sourceKind || "",
+        ].join("|");
+        if (replayKey && replayKey !== activeReplayKey) {
+          resetRuntimeStateForReplay();
+          activeReplayKey = replayKey;
+        }
+      }
+    }
+  }
+
+  function resetRuntimeStateForReplay() {
+    latestState = null;
+    latestSample = null;
+    lastNotificationSignature = null;
+    activeNotificationKey = null;
+    activeNotificationEventId = null;
+    activeNotificationRevision = null;
+  }
 
   function evaluateAndPublish() {
     const sample = sampleFromSignalK(app);
