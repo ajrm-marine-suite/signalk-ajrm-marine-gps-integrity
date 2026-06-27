@@ -173,6 +173,11 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
         res.status(500).json({ ok: false, error: error.message });
       }
     });
+    router.post("/reset", (_req, res) => {
+      resetRuntimeState("manual");
+      if (options.enabled) evaluateAndPublish();
+      res.json(statusResponse());
+    });
   };
 
   return plugin;
@@ -223,6 +228,10 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
   }
 
   function resetRuntimeStateForReplay() {
+    resetRuntimeState("replay");
+  }
+
+  function resetRuntimeState(_reason = "manual") {
     latestState = null;
     latestSample = null;
     lastNotificationSignature = null;

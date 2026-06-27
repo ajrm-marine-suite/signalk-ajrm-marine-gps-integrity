@@ -10,6 +10,7 @@ const stateCard = document.querySelector("#stateCard");
 const alertsEnabled = document.querySelector("#alertsEnabled");
 const integrityRealignMinutes = document.querySelector("#integrityRealignMinutes");
 const settingsStatus = document.querySelector("#settingsStatus");
+const resetBaselineButton = document.querySelector("#resetBaselineButton");
 let savingSettings = false;
 
 function renderFacts(element, facts) {
@@ -127,6 +128,27 @@ alertsEnabled.addEventListener("change", async () => {
 
 integrityRealignMinutes.addEventListener("change", async () => {
   await saveSettings();
+});
+
+resetBaselineButton.addEventListener("click", async () => {
+  settingsStatus.textContent = "Resetting GPS baseline...";
+  resetBaselineButton.disabled = true;
+  try {
+    const response = await fetch(`${apiBase}/reset`, {
+      method: "POST",
+      headers: { Accept: "application/json" },
+    });
+    const body = await response.json();
+    if (!response.ok) throw new Error(body.error || `HTTP ${response.status}`);
+    renderStatus(body);
+    const trustState = body.state?.trust || "unknown";
+    settingsStatus.textContent = `GPS baseline reset. Current trust: ${trustState}.`;
+  } catch (error) {
+    settingsStatus.textContent = error.message || "Unable to reset GPS baseline.";
+    await refresh();
+  } finally {
+    resetBaselineButton.disabled = false;
+  }
 });
 
 async function refresh() {

@@ -68,7 +68,8 @@ section:not(.grid) {
   gap: 12px;
 }
 
-.setting-row {
+.setting-row,
+.action-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -85,12 +86,14 @@ section:not(.grid) {
 }
 
 .switch-row span,
-.setting-row > span:first-child {
+.setting-row > span:first-child,
+.action-row > span:first-child {
   display: grid;
   gap: 3px;
 }
 
 .switch-row small,
+.action-row small,
 .settings-status {
   color: #526475;
 }
@@ -116,6 +119,29 @@ section:not(.grid) {
   color: #14202a;
   font: inherit;
   font-weight: 700;
+}
+
+button {
+  min-width: 6.5rem;
+  border: 1px solid #8fa4b5;
+  border-radius: 7px;
+  padding: 10px 14px;
+  background: linear-gradient(#ffffff, #e8eef3);
+  box-shadow: 0 3px 0 #8ba1b2;
+  color: #14202a;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+button:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 #8ba1b2;
+}
+
+button:disabled {
+  cursor: wait;
+  opacity: 0.65;
 }
 
 .trust {

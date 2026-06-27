@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.6
+
+- Add an explicit GPS baseline reset endpoint and page control for deliberate simulator resets, relocation, or confirmed-good GPS recovery.
+
 ## 0.5.5
 
 - Change the independent DR realign default to 5 minutes and add a persisted

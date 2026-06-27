@@ -210,6 +210,9 @@ test("settings route persists independent DR realign interval", async () => {
     put(path, handler) {
       routes.set(`PUT ${path}`, handler);
     },
+    post(path, handler) {
+      routes.set(`POST ${path}`, handler);
+    },
   });
   plugin.start({ updateIntervalMs: 500 });
 
@@ -239,6 +242,83 @@ test("settings route persists independent DR realign interval", async () => {
   assert.equal(body.integrityDrRealignSeconds, 120);
   assert.equal(savedOptions.alertsEnabled, false);
   assert.equal(savedOptions.integrityDrRealignSeconds, 120);
+});
+
+test("reset route rebaselines runtime state to the current valid GPS fix", async () => {
+  const messages = [];
+  let position = { latitude: 56, longitude: -5 };
+  let now = Date.parse("2026-06-24T12:00:00.000Z");
+  const originalDate = global.Date;
+  class FixedDate extends Date {
+    constructor(...args) {
+      super(...(args.length ? args : [now]));
+    }
+    static now() {
+      return now;
+    }
+  }
+  FixedDate.parse = originalDate.parse;
+  FixedDate.UTC = originalDate.UTC;
+  global.Date = FixedDate;
+  const plugin = pluginFactory({
+    getSelfPath(path) {
+      const values = {
+        "navigation.position": { value: position, timestamp: new Date(now).toISOString() },
+        "navigation.speedOverGround": { value: 2, timestamp: new Date(now).toISOString() },
+        "navigation.courseOverGroundTrue": { value: 1.2, timestamp: new Date(now).toISOString() },
+        "navigation.headingTrue": { value: 1.1, timestamp: new Date(now).toISOString() },
+        "navigation.gnss.horizontalDilution": { value: 0.8 },
+        "navigation.gnss.satellites": { value: 9 },
+      };
+      return values[path];
+    },
+    handleMessage(_pluginId, message) {
+      messages.push(message);
+    },
+    setPluginStatus() {},
+  });
+  const routes = new Map();
+  plugin.registerWithRouter({
+    get(path, handler) {
+      routes.set(`GET ${path}`, handler);
+    },
+    put(path, handler) {
+      routes.set(`PUT ${path}`, handler);
+    },
+    post(path, handler) {
+      routes.set(`POST ${path}`, handler);
+    },
+  });
+
+  try {
+    plugin.start({ updateIntervalMs: 500, maxBoatSpeedKnots: 20 });
+    position = { latitude: 56.1, longitude: -5 };
+    now += 1000;
+    await new Promise((resolve) => setTimeout(resolve, 560));
+
+    const suspect = await routeJson(routes.get("GET /status"));
+    assert.equal(suspect.state.trust, "suspect");
+
+    let body = null;
+    await routes.get("POST /reset")(
+      {},
+      {
+        status() {
+          return this;
+        },
+        json(value) {
+          body = value;
+        },
+      },
+    );
+
+    assert.equal(body.state.trust, "normal");
+    assert.equal(body.state.acceptedGps, true);
+    assert.deepEqual(body.state.lastTrustedFix.position, { latitude: 56.1, longitude: -5 });
+  } finally {
+    plugin.stop();
+    global.Date = originalDate;
+  }
 });
 
 test("clears trusted GPS projection when a jump is rejected", async () => {
@@ -360,4 +440,17 @@ function valuesFromUpdate(message) {
     {},
     ...message.updates.flatMap((update) => update.values).map((item) => ({ [item.path]: item.value })),
   );
+}
+
+async function routeJson(handler, req = {}) {
+  let body = null;
+  await handler(req, {
+    status() {
+      return this;
+    },
+    json(value) {
+      body = value;
+    },
+  });
+  return body;
 }
