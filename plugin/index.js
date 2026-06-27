@@ -237,15 +237,15 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
     const clock = replayClock(value);
     if (!clock || !lastReplayClock) {
       lastReplayClock = clock;
-      return activeReplayRate > 1 ? activeReplayRate : 20;
+      return Math.max(20, activeReplayRate);
     }
     const sourceElapsed = clock.sourceMs - lastReplayClock.sourceMs;
     const wallElapsed = clock.wallMs - lastReplayClock.wallMs;
     lastReplayClock = clock;
     if (sourceElapsed > 0 && wallElapsed > 0) {
-      return Math.min(500, Math.max(1, sourceElapsed / wallElapsed));
+      return Math.min(500, Math.max(20, activeReplayRate, sourceElapsed / wallElapsed));
     }
-    return activeReplayRate > 1 ? activeReplayRate : 20;
+    return Math.max(20, activeReplayRate);
   }
 
   function replayClock(value) {
@@ -256,8 +256,9 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
 
   function normalizeReplayRate(value) {
     if (String(value || "").toLowerCase() === "max") return null;
+    if (value === undefined || value === null || value === "") return null;
     const rate = Number(value);
-    return Number.isFinite(rate) && rate > 0 ? rate : 1;
+    return Number.isFinite(rate) && rate > 0 ? rate : null;
   }
 
   function evaluateAndPublish() {

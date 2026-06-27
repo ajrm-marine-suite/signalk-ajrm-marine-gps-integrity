@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.4
+
+- Keep Max replay GPS integrity scaling from dropping back to live-time between
+  playback clock samples.
+
 ## 0.5.3
 
 - Scale GPS jump checks and dead-reckoning propagation by AJRM Marine Logger
