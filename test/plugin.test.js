@@ -280,6 +280,31 @@ test("publishes continuous lost GPS as one stable active notification", async ()
   );
 });
 
+test("suppresses GPS integrity notifications when alerts are disabled", async () => {
+  const messages = [];
+  const plugin = pluginFactory({
+    getSelfPath(path) {
+      if (path === "navigation.position") return { value: null };
+      return undefined;
+    },
+    handleMessage(_pluginId, message) {
+      messages.push(message);
+    },
+    setPluginStatus() {},
+  });
+
+  plugin.start({ updateIntervalMs: 500, alertsEnabled: false });
+  await new Promise((resolve) => setTimeout(resolve, 560));
+  plugin.stop();
+
+  const notificationValues = messages
+    .flatMap((message) => message.updates.flatMap((update) => update.values))
+    .filter((value) => value.path === "notifications.navigation.gnss.integrity");
+
+  assert.ok(notificationValues.length > 0);
+  assert.equal(notificationValues.some((item) => item.value?.state === "alarm"), false);
+});
+
 function valuesFromUpdate(message) {
   return Object.assign(
     {},

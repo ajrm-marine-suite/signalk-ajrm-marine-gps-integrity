@@ -70,6 +70,7 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
     type: "object",
     properties: {
       enabled: { type: "boolean", title: "Enable GPS integrity monitor", default: true },
+      alertsEnabled: { type: "boolean", title: "Enable GPS integrity alerts", default: true },
       updateIntervalMs: {
         type: "integer",
         title: "Evaluation interval",
@@ -149,6 +150,20 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
     router.get("/status", (_req, res) => {
       res.json(statusResponse());
     });
+    router.put("/settings", async (req, res) => {
+      try {
+        options = normalizeOptions({
+          ...options,
+          alertsEnabled: req.body?.alertsEnabled,
+        });
+        await savePluginOptions(options);
+        if (!options.alertsEnabled) publishValue(NOTIFICATION_PATH, null);
+        res.json(statusResponse());
+      } catch (error) {
+        app.error?.(`[${PLUGIN_ID}] settings save failed: ${error.message}`);
+        res.status(500).json({ ok: false, error: error.message });
+      }
+    });
   };
 
   return plugin;
@@ -172,22 +187,25 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
       if (context !== "vessels.self") continue;
       for (const entry of update.values || []) {
         if (entry.path !== LOGGER_PLAYBACK_PATH) continue;
-        const value = entry.value || {};
-        if (!value.playing) {
-          activeReplayKey = null;
-          continue;
-        }
-        const replayKey = [
-          value.voyageFileName || "",
-          value.displayFileName || "",
-          value.fileName || "",
-          value.sourceKind || "",
-        ].join("|");
-        if (replayKey && replayKey !== activeReplayKey) {
-          resetRuntimeStateForReplay();
-          activeReplayKey = replayKey;
-        }
+        handleLoggerPlaybackValue(entry.value);
       }
+    }
+  }
+
+  function handleLoggerPlaybackValue(value = {}) {
+    if (!value || typeof value !== "object" || !value.playing) {
+      activeReplayKey = null;
+      return;
+    }
+    const replayKey = [
+      value.voyageFileName || "",
+      value.displayFileName || "",
+      value.fileName || "",
+      value.sourceKind || "",
+    ].join("|");
+    if (replayKey && replayKey !== activeReplayKey) {
+      resetRuntimeStateForReplay();
+      activeReplayKey = replayKey;
     }
   }
 
@@ -201,6 +219,7 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
   }
 
   function evaluateAndPublish() {
+    updateReplayBoundaryFromSignalK();
     const sample = sampleFromSignalK(app);
     latestSample = sample;
     latestState = evaluateNavigationIntegrity(sample, latestState, {
@@ -214,12 +233,17 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
     publishNotification(notificationValue(latestState));
   }
 
+  function updateReplayBoundaryFromSignalK() {
+    handleLoggerPlaybackValue(getSelfPath(app, LOGGER_PLAYBACK_PATH));
+  }
+
   function statusResponse() {
     return {
       ok: true,
       plugin: PLUGIN_ID,
       version: packageInfo.version,
       enabled: options.enabled,
+      alertsEnabled: options.alertsEnabled,
       statePath: `vessels.self.${STATE_PATH}`,
       notificationPath: `vessels.self.${NOTIFICATION_PATH}`,
       trustedPrefix: `vessels.self.${TRUSTED_PREFIX}`,
@@ -351,6 +375,9 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
   }
 
   function publishNotification(value) {
+    if (!options.alertsEnabled) {
+      value = null;
+    }
     const signature = JSON.stringify(value);
     if (signature === lastNotificationSignature) return;
     lastNotificationSignature = signature;
@@ -359,6 +386,19 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
 
   function publishValue(path, value) {
     publishValues([{ path, value }]);
+  }
+
+  function savePluginOptions(nextOptions) {
+    return new Promise((resolve, reject) => {
+      if (typeof app.savePluginOptions !== "function") {
+        resolve();
+        return;
+      }
+      app.savePluginOptions(nextOptions, (error) => {
+        if (error) reject(error);
+        else resolve();
+      });
+    });
   }
 
   function publishValues(values) {
@@ -532,6 +572,7 @@ function normalizeOptions(value = {}) {
   const interval = Number.parseInt(value.updateIntervalMs, 10);
   return {
     enabled: value.enabled !== false,
+    alertsEnabled: value.alertsEnabled !== false,
     updateIntervalMs: Number.isFinite(interval) ? Math.min(10000, Math.max(500, interval)) : 1000,
     maxBoatSpeedKnots: value.maxBoatSpeedKnots,
     maxHdop: value.maxHdop,

@@ -7,6 +7,9 @@ const drFacts = document.querySelector("#drFacts");
 const counterFacts = document.querySelector("#counterFacts");
 const reasons = document.querySelector("#reasons");
 const stateCard = document.querySelector("#stateCard");
+const alertsEnabled = document.querySelector("#alertsEnabled");
+const settingsStatus = document.querySelector("#settingsStatus");
+let savingSettings = false;
 
 function renderFacts(element, facts) {
   element.innerHTML = "";
@@ -25,6 +28,9 @@ function renderStatus(data) {
   stateCard.dataset.trust = state.trust || "unknown";
   trust.textContent = (state.trust || "unknown").toUpperCase();
   subtitle.textContent = `Provider v${data.version}`;
+  if (!savingSettings) {
+    alertsEnabled.checked = data.alertsEnabled !== false;
+  }
   const counters = state.counters || {};
   const errorCount = (counters.rejectedFixes || 0) + (counters.lostFixes || 0) + (counters.degradedSignals || 0);
   summary.textContent = state.reasons?.[0] || `GPS integrity is normal. ${errorCount} detected issues since start.`;
@@ -80,6 +86,30 @@ function renderStatus(data) {
 function formatCount(value) {
   return Number.isFinite(Number(value)) ? String(Number(value)) : "0";
 }
+
+alertsEnabled.addEventListener("change", async () => {
+  savingSettings = true;
+  settingsStatus.textContent = "Saving...";
+  alertsEnabled.disabled = true;
+  try {
+    const response = await fetch(`${apiBase}/settings`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ alertsEnabled: alertsEnabled.checked }),
+    });
+    const body = await response.json();
+    if (!response.ok) throw new Error(body.error || `HTTP ${response.status}`);
+    alertsEnabled.checked = body.alertsEnabled !== false;
+    settingsStatus.textContent = alertsEnabled.checked ? "Alerts enabled" : "Alerts disabled";
+    renderStatus(body);
+  } catch (error) {
+    settingsStatus.textContent = error.message || "Unable to save alert setting.";
+    await refresh();
+  } finally {
+    alertsEnabled.disabled = false;
+    savingSettings = false;
+  }
+});
 
 async function refresh() {
   try {

@@ -43,6 +43,7 @@ h2 {
   margin-bottom: 10px;
 }
 
+.control-card,
 .state-card,
 .grid > div,
 section:not(.grid) {
@@ -55,6 +56,37 @@ section:not(.grid) {
 
 .state-card {
   margin-bottom: 16px;
+}
+
+.control-card {
+  margin-bottom: 16px;
+}
+
+.switch-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.switch-row input {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+}
+
+.switch-row span {
+  display: grid;
+  gap: 3px;
+}
+
+.switch-row small,
+.settings-status {
+  color: #526475;
+}
+
+.settings-status {
+  min-height: 1.3em;
+  margin-top: 8px;
 }
 
 .trust {
