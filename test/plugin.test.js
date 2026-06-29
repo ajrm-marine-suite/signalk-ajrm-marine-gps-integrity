@@ -244,6 +244,70 @@ test("settings route persists independent DR realign interval", async () => {
   assert.equal(savedOptions.integrityDrRealignSeconds, 120);
 });
 
+test("manual fix route publishes a trusted observed position and DR baseline", async () => {
+  const messages = [];
+  const plugin = pluginFactory({
+    getSelfPath(path) {
+      const values = {
+        "navigation.position": { value: null },
+        "navigation.speedOverGround": { value: 0.5 },
+        "navigation.courseOverGroundTrue": { value: Math.PI / 2 },
+        "navigation.headingTrue": { value: Math.PI / 2 },
+        "navigation.speedThroughWater": { value: 0.4 },
+      };
+      return values[path];
+    },
+    handleMessage(_pluginId, message) {
+      messages.push(message);
+    },
+    setPluginStatus() {},
+  });
+  const routes = new Map();
+  plugin.registerWithRouter({
+    get(path, handler) {
+      routes.set(`GET ${path}`, handler);
+    },
+    put(path, handler) {
+      routes.set(`PUT ${path}`, handler);
+    },
+    post(path, handler) {
+      routes.set(`POST ${path}`, handler);
+    },
+  });
+
+  plugin.start({ updateIntervalMs: 500 });
+  const body = await routeJson(routes.get("POST /manual-fix"), {
+    body: {
+      position: { latitude: 56.21, longitude: -5.56 },
+      timestamp: "2026-06-29T11:00:00.000Z",
+      note: "visual bearings",
+    },
+  });
+  plugin.stop();
+
+  assert.equal(body.ok, true);
+  assert.equal(body.state.acceptedManualFix, true);
+  assert.equal(body.state.acceptedGps, false);
+  assert.equal(body.state.lastTrustedFix.source, "manual-fix");
+  assert.deepEqual(body.state.lastTrustedFix.position, { latitude: 56.21, longitude: -5.56 });
+  assert.equal(body.state.lastTrustedFix.note, "visual bearings");
+
+  const publishedValues = valuesFromUpdate(messages.find((message) => {
+    const values = valuesFromUpdate(message);
+    return values["plugins.ajrmMarineGpsIntegrity.trusted.source"] === "manual-fix";
+  }));
+  assert.equal(publishedValues["plugins.ajrmMarineGpsIntegrity.trusted.accepted"], true);
+  assert.deepEqual(
+    publishedValues["plugins.ajrmMarineGpsIntegrity.trusted.position"],
+    { latitude: 56.21, longitude: -5.56 },
+  );
+  assert.equal(publishedValues["plugins.ajrmMarineGpsIntegrity.deadReckoning.operational.source"], "manual-fix");
+  assert.deepEqual(
+    publishedValues["plugins.ajrmMarineGpsIntegrity.deadReckoning.operational.position"],
+    { latitude: 56.21, longitude: -5.56 },
+  );
+});
+
 test("reset route rebaselines runtime state to the current valid GPS fix", async () => {
   const messages = [];
   let position = { latitude: 56, longitude: -5 };

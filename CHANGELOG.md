@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.9
+
+- Add a manual observed-fix endpoint so a skipper can rebase trusted position
+  and operational dead reckoning from bearings, transits, radar, or another
+  non-GPS fix while GPS remains unavailable.
+
 ## 0.5.8
 
 - Avoid double-counting tide/current when independent dead reckoning falls back

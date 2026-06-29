@@ -178,6 +178,21 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
       if (options.enabled) evaluateAndPublish();
       res.json(statusResponse());
     });
+    router.post("/manual-fix", (req, res) => {
+      try {
+        const manualFix = normalizeManualFix(req.body);
+        latestState = manualFixState(manualFix);
+        latestSample = sampleFromSignalK(app);
+        publishValues([
+          { path: STATE_PATH, value: latestState },
+          ...navigationProjectionValues(latestState),
+        ]);
+        publishNotification(notificationValue(latestState));
+        res.json({ ok: true, manualFix, state: latestState });
+      } catch (error) {
+        res.status(400).json({ ok: false, error: error.message });
+      }
+    });
   };
 
   return plugin;
@@ -238,6 +253,67 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
     activeNotificationKey = null;
     activeNotificationEventId = null;
     activeNotificationRevision = null;
+  }
+
+  function manualFixState(manualFix) {
+    const sample = sampleFromSignalK(app);
+    const timestamp = manualFix.timestamp;
+    const lastTrustedFix = {
+      position: manualFix.position,
+      timestamp,
+      hdop: null,
+      satellites: null,
+      source: "manual-fix",
+      note: manualFix.note || null,
+    };
+    const motionSample = {
+      ...sample,
+      position: manualFix.position,
+      positionTimestamp: timestamp,
+      fixValid: false,
+    };
+    const deadReckoning = {
+      position: manualFix.position,
+      uncertaintyRadiusMeters: 10,
+      source: "manual-fix",
+      ageSeconds: 0,
+      lastRealignedAt: timestamp,
+      realignIntervalSeconds: 0,
+    };
+    return {
+      ok: true,
+      timestamp,
+      trust: "lost",
+      notificationState: "alarm",
+      acceptedGps: false,
+      acceptedManualFix: true,
+      reasons: ["Position set from manual observed fix. GPS position is missing or invalid."],
+      counters: latestState?.counters || {},
+      gps: {
+        position: sample.position || null,
+        fixValid: false,
+        positionTimestamp: sample.positionTimestamp || null,
+        positionAgeSeconds: null,
+        hdop: null,
+        satellites: null,
+        speedOverGround: sample.speedOverGround ?? null,
+        courseOverGroundTrue: sample.courseOverGroundTrue ?? null,
+        headingTrue: sample.headingTrue ?? null,
+      },
+      lastTrustedFix,
+      manualFix,
+      pendingGpsCandidate: null,
+      degradedSignalActive: false,
+      drDiscrepancyActive: false,
+      deadReckoning,
+      operationalDeadReckoning: deadReckoning,
+      integrityDeadReckoning: {
+        ...deadReckoning,
+        source: "manual-fix",
+        realignIntervalSeconds: options.integrityDrRealignSeconds,
+      },
+      vectors: buildManualFixVectors(motionSample),
+    };
   }
 
   function replayRateFromPlaybackValue(value) {
@@ -317,11 +393,17 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
   }
 
   function navigationProjectionValues(state) {
-    const accepted = Boolean(state?.acceptedGps && state?.gps?.position);
-    const trustedSource = accepted
-      ? state.trust === "normal"
-        ? "gps"
-        : "gps-degraded"
+    const trustedAccepted = Boolean(
+      (state?.acceptedGps && state?.gps?.position) ||
+        (state?.acceptedManualFix && state?.lastTrustedFix?.position),
+    );
+    const trustedPosition = state?.acceptedGps ? state.gps.position : state?.lastTrustedFix?.position;
+    const trustedSource = trustedAccepted
+      ? state.lastTrustedFix?.source === "manual-fix"
+        ? "manual-fix"
+        : state.trust === "normal"
+          ? "gps"
+          : "gps-degraded"
       : state?.trust === "lost"
         ? "unavailable"
         : state?.trust === "suspect"
@@ -332,14 +414,14 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
     const integrity = state?.integrityDeadReckoning || {};
     const counters = state?.counters || {};
     return [
-      { path: `${TRUSTED_PREFIX}.accepted`, value: accepted },
-      { path: `${TRUSTED_PREFIX}.position`, value: accepted ? state.gps.position : null },
-      { path: `${TRUSTED_PREFIX}.speedOverGround`, value: accepted ? state.gps.speedOverGround : null },
-      { path: `${TRUSTED_PREFIX}.courseOverGroundTrue`, value: accepted ? state.gps.courseOverGroundTrue : null },
-      { path: `${TRUSTED_PREFIX}.headingTrue`, value: accepted ? state.gps.headingTrue : null },
-      { path: `${TRUSTED_PREFIX}.timestamp`, value: accepted ? state.lastTrustedFix?.timestamp || state.timestamp : null },
+      { path: `${TRUSTED_PREFIX}.accepted`, value: trustedAccepted },
+      { path: `${TRUSTED_PREFIX}.position`, value: trustedAccepted ? trustedPosition : null },
+      { path: `${TRUSTED_PREFIX}.speedOverGround`, value: state?.acceptedGps ? state.gps.speedOverGround : null },
+      { path: `${TRUSTED_PREFIX}.courseOverGroundTrue`, value: state?.acceptedGps ? state.gps.courseOverGroundTrue : null },
+      { path: `${TRUSTED_PREFIX}.headingTrue`, value: state?.acceptedGps ? state.gps.headingTrue : null },
+      { path: `${TRUSTED_PREFIX}.timestamp`, value: trustedAccepted ? state.lastTrustedFix?.timestamp || state.timestamp : null },
       { path: `${TRUSTED_PREFIX}.source`, value: trustedSource },
-      { path: `${TRUSTED_PREFIX}.rejectionReason`, value: accepted ? null : state?.reasons?.join(" ") || null },
+      { path: `${TRUSTED_PREFIX}.rejectionReason`, value: trustedAccepted ? null : state?.reasons?.join(" ") || null },
       { path: `${DEAD_RECKONING_PREFIX}.position`, value: deadReckoning.position || null },
       {
         path: `${DEAD_RECKONING_PREFIX}.uncertaintyRadiusMeters`,
@@ -650,9 +732,53 @@ function clampNumber(value, min, max, fallback) {
   return Math.min(max, Math.max(min, number));
 }
 
+function normalizeManualFix(value = {}) {
+  const source = value.position || value;
+  const latitude = Number(source.latitude ?? source.lat);
+  const longitude = Number(source.longitude ?? source.lon);
+  if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90) {
+    throw new Error("Manual fix latitude must be between -90 and 90.");
+  }
+  if (!Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
+    throw new Error("Manual fix longitude must be between -180 and 180.");
+  }
+  const timestampMs = value.timestamp ? Date.parse(value.timestamp) : Date.now();
+  if (!Number.isFinite(timestampMs)) throw new Error("Manual fix timestamp is invalid.");
+  return {
+    position: { latitude, longitude },
+    timestamp: new Date(timestampMs).toISOString(),
+    note: typeof value.note === "string" && value.note.trim() ? value.note.trim().slice(0, 160) : null,
+  };
+}
+
+function buildManualFixVectors(sample) {
+  const toDegrees = (radians) => Number.isFinite(Number(radians))
+    ? ((((Number(radians) * 180) / Math.PI) % 360) + 360) % 360
+    : null;
+  const vector = (speed, bearing, arrow) => {
+    const numericSpeed = Number(speed);
+    const bearingDegrees = toDegrees(bearing);
+    if (!Number.isFinite(numericSpeed) || bearingDegrees === null) return { available: false, arrow };
+    return {
+      available: true,
+      speedMps: numericSpeed,
+      speedKnots: numericSpeed * 1.9438444924406046,
+      bearingTrueDegrees: bearingDegrees,
+      arrow,
+    };
+  };
+  return {
+    headingThroughWater: vector(sample.speedThroughWater ?? sample.speedOverGround, sample.headingTrue ?? sample.headingMagnetic, "single"),
+    tide: vector(sample.currentDrift, sample.currentSetTrue, "triple"),
+    courseOverGround: vector(sample.speedOverGround, sample.courseOverGroundTrue, "double"),
+  };
+}
+
 module.exports._private = {
+  buildManualFixVectors,
   chooseNavigationSource,
   DISTANCE_METADATA_PATHS,
+  normalizeManualFix,
   normalizeOptions,
   preferredDistanceUnit: (app) => {
     for (const pathName of DISTANCE_METADATA_PATHS) {
