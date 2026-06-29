@@ -331,12 +331,8 @@ function propagateDeadReckoningFrom(previousPosition, previousTimestamp, sample,
 
   const effectiveSample = motionSample || sample;
   const motion = drMotion(effectiveSample, settings);
-  const currentSet = finiteNumber(effectiveSample.currentSetTrue);
-  const currentDrift = finiteNumber(effectiveSample.currentDrift);
   const boat = vectorFromSpeedBearing(motion.speed, motion.bearing);
-  const current = Number.isFinite(currentSet) && Number.isFinite(currentDrift)
-    ? vectorFromSpeedBearing(currentDrift, currentSet)
-    : { east: 0, north: 0 };
+  const current = currentVectorForMotion(motion, effectiveSample);
   const total = {
     east: boat.east + current.east,
     north: boat.north + current.north,
@@ -403,12 +399,8 @@ function buildVectors(sample, settings = normalizeOptions({}), trust = "normal")
 function makeDerivedOverGroundVector(sample, settings) {
   const motion = drMotion(sample, settings);
   if (!motion.source) return { available: false, arrow: "double" };
-  const currentSet = finiteNumber(sample.currentSetTrue);
-  const currentDrift = finiteNumber(sample.currentDrift);
   const boat = vectorFromSpeedBearing(motion.speed, motion.bearing);
-  const current = Number.isFinite(currentSet) && Number.isFinite(currentDrift)
-    ? vectorFromSpeedBearing(currentDrift, currentSet)
-    : { east: 0, north: 0 };
+  const current = currentVectorForMotion(motion, sample);
   const east = boat.east + current.east;
   const north = boat.north + current.north;
   const speedMps = Math.sqrt(east ** 2 + north ** 2);
@@ -420,8 +412,18 @@ function makeDerivedOverGroundVector(sample, settings) {
     speedKnots: speedMps * MPS_TO_KNOTS,
     bearingTrueDegrees: normalizeDegrees(bearing * DEG_PER_RAD),
     arrow: "double",
-    source: `${motion.source}${Number.isFinite(currentDrift) ? "-current" : ""}`,
+    source: `${motion.source}${current.available ? "-current" : ""}`,
   };
+}
+
+function currentVectorForMotion(motion, sample) {
+  if (motion?.source !== "heading-stw") return { east: 0, north: 0, available: false };
+  const currentSet = finiteNumber(sample.currentSetTrue);
+  const currentDrift = finiteNumber(sample.currentDrift);
+  if (!Number.isFinite(currentSet) || !Number.isFinite(currentDrift)) {
+    return { east: 0, north: 0, available: false };
+  }
+  return { ...vectorFromSpeedBearing(currentDrift, currentSet), available: true };
 }
 
 function makeVector(speed, bearing, arrow) {

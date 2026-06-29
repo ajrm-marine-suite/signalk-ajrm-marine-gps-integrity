@@ -128,6 +128,41 @@ test("falls back to SOG and COG when the water speed log reads zero while moving
   assert.ok(Math.abs(second.deadReckoning.position.latitude - 56) < 0.00002);
 });
 
+test("does not add tide again when independent DR uses COG/SOG", () => {
+  const start = { latitude: 56, longitude: -5 };
+  const first = evaluateNavigationIntegrity({
+    timestamp: "2026-06-22T12:00:00.000Z",
+    position: start,
+    headingTrue: 0,
+    speedThroughWater: 0,
+    speedOverGround: 1.5,
+    courseOverGroundTrue: Math.PI / 2,
+    currentSetTrue: Math.PI / 2,
+    currentDrift: 1,
+  }, null, {
+    warningDrDiscrepancyMeters: 5,
+    alarmDrDiscrepancyMeters: 50,
+  });
+
+  const second = evaluateNavigationIntegrity({
+    timestamp: "2026-06-22T12:00:10.000Z",
+    position: _private.destinationMeters(start, 15, 0),
+    headingTrue: 0,
+    speedThroughWater: 0,
+    speedOverGround: 1.5,
+    courseOverGroundTrue: Math.PI / 2,
+    currentSetTrue: Math.PI / 2,
+    currentDrift: 1,
+  }, first, {
+    warningDrDiscrepancyMeters: 5,
+    alarmDrDiscrepancyMeters: 50,
+  });
+
+  assert.equal(second.trust, "normal");
+  assert.equal(second.integrityDeadReckoning.source, "cog-sog");
+  assert.doesNotMatch(second.reasons.join(" "), /independent dead reckoning/);
+});
+
 test("falls back to course over ground when heading is unavailable", () => {
   const first = evaluateNavigationIntegrity({
     timestamp: "2026-06-22T12:00:00.000Z",
@@ -426,6 +461,38 @@ test("operational DR propagates only after GPS is unavailable", () => {
   assert.equal(lost.deadReckoning.position, lost.operationalDeadReckoning.position);
 });
 
+test("operational DR drifts on tide when GPS is lost and the boat is stopped", () => {
+  const start = { latitude: 56, longitude: -5 };
+  const first = evaluateNavigationIntegrity({
+    timestamp: "2026-06-22T12:00:00.000Z",
+    position: start,
+    headingTrue: 0,
+    speedThroughWater: 0,
+    speedOverGround: 0,
+    courseOverGroundTrue: 0,
+    currentSetTrue: Math.PI / 2,
+    currentDrift: 1,
+  });
+  const lost = evaluateNavigationIntegrity({
+    timestamp: "2026-06-22T12:00:10.000Z",
+    position: null,
+    headingTrue: 0,
+    speedThroughWater: 0,
+    speedOverGround: 0,
+    courseOverGroundTrue: 0,
+    currentSetTrue: Math.PI / 2,
+    currentDrift: 1,
+    fixValid: false,
+  }, first);
+
+  assert.equal(lost.trust, "lost");
+  assert.equal(lost.operationalDeadReckoning.source, "heading-stw-current");
+  assert.ok(lost.operationalDeadReckoning.position.longitude > start.longitude);
+  assert.ok(Math.abs(lost.operationalDeadReckoning.position.latitude - start.latitude) < 0.00002);
+  assert.ok(_private.distanceMeters(start, lost.operationalDeadReckoning.position) > 9);
+  assert.ok(_private.distanceMeters(start, lost.operationalDeadReckoning.position) < 11);
+});
+
 test("publishes single-arrow vector only when heading is available", () => {
   const state = evaluateNavigationIntegrity({
     timestamp: "2026-06-22T12:00:00.000Z",
@@ -467,6 +534,35 @@ test("lost GPS double-arrow vector follows operational DR over ground", () => {
   assert.equal(lost.vectors.courseOverGround.source, "heading-stw-current");
   assert.ok(lost.vectors.courseOverGround.bearingTrueDegrees > 25);
   assert.ok(lost.vectors.courseOverGround.bearingTrueDegrees < 27);
+});
+
+test("lost GPS double-arrow vector does not add current to COG/SOG", () => {
+  const first = evaluateNavigationIntegrity({
+    timestamp: "2026-06-22T12:00:00.000Z",
+    position: { latitude: 56, longitude: -5 },
+    headingTrue: 0,
+    speedThroughWater: 0,
+    speedOverGround: 1.5,
+    courseOverGroundTrue: Math.PI / 2,
+    currentSetTrue: Math.PI / 2,
+    currentDrift: 1,
+  });
+  const lost = evaluateNavigationIntegrity({
+    timestamp: "2026-06-22T12:00:10.000Z",
+    position: null,
+    headingTrue: 0,
+    speedThroughWater: 0,
+    speedOverGround: 1.5,
+    courseOverGroundTrue: Math.PI / 2,
+    currentSetTrue: Math.PI / 2,
+    currentDrift: 1,
+    fixValid: false,
+  }, first);
+
+  assert.equal(lost.vectors.courseOverGround.arrow, "double");
+  assert.equal(lost.vectors.courseOverGround.source, "cog-sog");
+  assert.equal(lost.vectors.courseOverGround.speedMps, 1.5);
+  assert.equal(lost.vectors.courseOverGround.bearingTrueDegrees, 90);
 });
 
 test("publishes tide/current as the triple-arrow vector", () => {

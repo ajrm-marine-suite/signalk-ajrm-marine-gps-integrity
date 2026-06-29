@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.8
+
+- Avoid double-counting tide/current when independent dead reckoning falls back
+  to COG/SOG, which already represents motion over the ground.
+- Keep operational dead reckoning drifting on tide/current when GPS is lost and
+  the boat is stopped.
+
 ## 0.5.7
 
 - Remove obsolete suite naming from package metadata and test fixtures.
