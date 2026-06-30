@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.12
+
+- Add Signal K AppStore relationship metadata recommending DR Plotter as the
+  visual companion for GPS integrity and dead-reckoning output.
+- Add the reusable Signal K plugin CI workflow.
+
 ## 0.5.9
 
 - Add a manual observed-fix endpoint so a skipper can rebase trusted position
