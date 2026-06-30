@@ -283,6 +283,40 @@ test("treats a stale cached Signal K position as lost GPS", () => {
   assert.equal(stale.counters.drDiscrepancies, 0);
 });
 
+test("fresh GPS rejected by independent DR mismatch stays suspect, not lost", () => {
+  let state = evaluateNavigationIntegrity({
+    timestamp: "2026-06-22T12:00:00.000Z",
+    position: { latitude: 56, longitude: -5 },
+    speedOverGround: 2.2,
+    courseOverGroundTrue: Math.PI / 2,
+  }, null, {
+    warningDrDiscrepancyMeters: 20,
+    alarmDrDiscrepancyMeters: 40,
+    gpsLostSeconds: 15,
+    integrityDrRealignSeconds: 300,
+  });
+
+  state = evaluateNavigationIntegrity({
+    timestamp: "2026-06-22T12:00:25.000Z",
+    position: { latitude: 56, longitude: -5 },
+    positionTimestamp: "2026-06-22T12:00:25.000Z",
+    speedOverGround: 2.2,
+    courseOverGroundTrue: Math.PI / 2,
+  }, state, {
+    warningDrDiscrepancyMeters: 20,
+    alarmDrDiscrepancyMeters: 40,
+    gpsLostSeconds: 15,
+    integrityDrRealignSeconds: 300,
+  });
+
+  assert.equal(state.gps.fixValid, true);
+  assert.equal(state.trust, "suspect");
+  assert.equal(state.acceptedGps, false);
+  assert.match(state.reasons.join(" "), /GPS differs from independent dead reckoning/);
+  assert.match(state.reasons.join(" "), /Last trusted GPS fix is 25 seconds old/);
+  assert.equal(state.counters.lostFixes, 0);
+});
+
 test("does not count startup with no GPS as an outage before the first trusted fix", () => {
   const startup = evaluateNavigationIntegrity({
     timestamp: "2026-06-22T12:00:00.000Z",

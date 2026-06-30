@@ -127,7 +127,7 @@ function evaluateNavigationIntegrity(sample, previousState = null, options = {})
 
   const ageSeconds = lastTrustedFix ? Math.max(0, (nowMs - timestampMs(lastTrustedFix.timestamp)) / 1000) : null;
   if (ageSeconds !== null && ageSeconds > settings.gpsLostSeconds) {
-    trust = maxTrust(trust, "lost");
+    if (!fixValid) trust = maxTrust(trust, "lost");
     reasons.push(`Last trusted GPS fix is ${Math.round(ageSeconds)} seconds old.`);
   }
 
