@@ -50,6 +50,20 @@ function evaluateNavigationIntegrity(sample, previousState = null, options = {})
     reasons.push(`${satellites} satellites in view is below ${settings.minSatellites}.`);
   }
 
+  const stationaryAtTrustedFix =
+    fixValid &&
+    position &&
+    previousIntegrityDr?.position &&
+    stationaryGpsFix(sample, motionSample, settings) &&
+    distanceMeters(previousIntegrityDr.position, position) <= settings.positionNoiseAllowanceMeters;
+  const integrityMotionSample = stationaryAtTrustedFix
+    ? {
+        ...motionSample,
+        currentSetTrue: undefined,
+        currentDrift: undefined,
+      }
+    : motionSample;
+
   if (fixValid && lastTrustedFix?.position) {
     const elapsedSeconds = Math.max(0.001, (nowMs - timestampMs(lastTrustedFix.timestamp)) / 1000);
     const distance = distanceMeters(lastTrustedFix.position, position);
@@ -79,7 +93,7 @@ function evaluateNavigationIntegrity(sample, previousState = null, options = {})
     previousIntegrityDr?.position,
     previousState?.timestamp || previousIntegrityDr?.timestamp || previousIntegrityDr?.lastRealignedAt,
     sample,
-    motionSample,
+    integrityMotionSample,
     settings,
     nowMs,
   );
@@ -90,10 +104,10 @@ function evaluateNavigationIntegrity(sample, previousState = null, options = {})
         ? Math.max(0, (nowMs - timestampMs(previousIntegrityDr.lastRealignedAt)) / 1000)
         : null,
       sample,
-      motionSample,
+      motionSample: integrityMotionSample,
       settings,
       trust,
-      source: drSource(motionSample),
+      source: drSource(integrityMotionSample),
       lastRealignedAt: previousIntegrityDr?.lastRealignedAt || null,
       realignIntervalSeconds: settings.integrityDrRealignSeconds,
     });
@@ -101,7 +115,7 @@ function evaluateNavigationIntegrity(sample, previousState = null, options = {})
 
   if (resetBaselineFromCandidate && position) {
     integrityDeadReckoning = makeRealignedDrTrack(position, sample, motionSample, settings, trust, nowMs);
-  } else if (fixValid && integrityDeadReckoning?.position) {
+  } else if (fixValid && integrityDeadReckoning?.position && !stationaryAtTrustedFix) {
     const discrepancy = distanceMeters(integrityDeadReckoning.position, position);
     if (discrepancy > settings.warningDrDiscrepancyMeters) {
       trust = maxTrust(trust, "degraded");
@@ -426,6 +440,17 @@ function currentVectorForMotion(motion, sample) {
   return { ...vectorFromSpeedBearing(currentDrift, currentSet), available: true };
 }
 
+function stationaryGpsFix(sample, motionSample = sample, settings = normalizeOptions({})) {
+  const position = normalizePosition(sample.position);
+  const fixValid = sample.fixValid !== false && Boolean(position);
+  if (!fixValid) return false;
+  const sog = finiteNumber(motionSample.speedOverGround);
+  const stw = finiteNumber(motionSample.speedThroughWater);
+  const sogStationary = !Number.isFinite(sog) || Math.abs(sog) < settings.minReliableSogMps;
+  const stwStationary = !Number.isFinite(stw) || Math.abs(stw) < settings.minReliableStwMps;
+  return sogStationary && stwStationary;
+}
+
 function makeVector(speed, bearing, arrow) {
   const numericSpeed = finiteNumber(speed);
   const numericBearing = finiteNumber(bearing);
@@ -450,7 +475,7 @@ function uncertaintyRadius(ageSeconds, sample, settings, trust) {
 
 function drSource(sample) {
   const motion = drMotion(sample, normalizeOptions({}));
-  if (motion.source === "heading-stw" && Number.isFinite(finiteNumber(sample.currentDrift))) {
+  if (motion.source === "heading-stw" && currentVectorForMotion(motion, sample).available) {
     return "heading-stw-current";
   }
   if (motion.source) return motion.source;

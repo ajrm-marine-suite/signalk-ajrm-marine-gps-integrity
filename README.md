@@ -3,6 +3,10 @@
 Signal K plugin and small status webapp for monitoring GPS/GNSS trust and
 publishing a dead-reckoning state for AJRM Marine apps.
 
+`v0.5.11` treats a healthy fixed GPS position with zero SOG/STW as stationary
+for the independent DR comparison, so tide alone does not create a false
+spoofing alarm while tied up. Lost GPS still allows DR to drift with tide.
+
 The provider publishes:
 
 - `vessels.self.plugins.ajrmMarineGpsIntegrity.navigationIntegrity`

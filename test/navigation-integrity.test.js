@@ -527,6 +527,37 @@ test("operational DR drifts on tide when GPS is lost and the boat is stopped", (
   assert.ok(_private.distanceMeters(start, lost.operationalDeadReckoning.position) < 11);
 });
 
+test("healthy stationary GPS does not diverge from independent DR on tide alone", () => {
+  const start = { latitude: 56, longitude: -5 };
+  let state = evaluateNavigationIntegrity({
+    timestamp: "2026-06-22T12:00:00.000Z",
+    position: start,
+    headingTrue: 0,
+    speedThroughWater: 0,
+    speedOverGround: 0,
+    courseOverGroundTrue: 0,
+    currentSetTrue: Math.PI / 2,
+    currentDrift: 2,
+  });
+
+  state = evaluateNavigationIntegrity({
+    timestamp: "2026-06-22T12:02:00.000Z",
+    position: start,
+    headingTrue: 0,
+    speedThroughWater: 0,
+    speedOverGround: 0,
+    courseOverGroundTrue: 0,
+    currentSetTrue: Math.PI / 2,
+    currentDrift: 2,
+  }, state);
+
+  assert.equal(state.trust, "normal");
+  assert.equal(state.acceptedGps, true);
+  assert.equal(state.reasons.length, 0);
+  assert.equal(state.integrityDeadReckoning.source, "heading-stw");
+  assert.ok(_private.distanceMeters(start, state.integrityDeadReckoning.position) < 1);
+});
+
 test("publishes single-arrow vector only when heading is available", () => {
   const state = evaluateNavigationIntegrity({
     timestamp: "2026-06-22T12:00:00.000Z",
