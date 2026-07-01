@@ -32,6 +32,14 @@ function evaluateNavigationIntegrity(sample, previousState = null, options = {})
   let pendingGpsCandidate = previousState?.pendingGpsCandidate || null;
   let resetBaselineFromCandidate = false;
   let positionJumpRejected = false;
+  const receivedGpsTimestamp = position
+    ? new Date(positionTimestampMs || nowMs).toISOString()
+    : null;
+  const lastReceivedGpsTimestamp =
+    receivedGpsTimestamp ||
+    previousState?.gps?.lastReceivedPositionTimestamp ||
+    previousState?.gps?.positionTimestamp ||
+    null;
 
   if (!fixValid) {
     trust = "lost";
@@ -142,7 +150,16 @@ function evaluateNavigationIntegrity(sample, previousState = null, options = {})
   const ageSeconds = lastTrustedFix ? Math.max(0, (nowMs - timestampMs(lastTrustedFix.timestamp)) / 1000) : null;
   if (ageSeconds !== null && ageSeconds > settings.gpsLostSeconds) {
     if (!fixValid) trust = maxTrust(trust, "lost");
-    reasons.push(`Last trusted GPS fix is ${Math.round(ageSeconds)} seconds old.`);
+    if (fixValid) {
+      reasons.push(`Last trusted GPS fix is ${Math.round(ageSeconds)} seconds old.`);
+    } else if (!position) {
+      const receivedAgeSeconds = lastReceivedGpsTimestamp
+        ? Math.max(0, (nowMs - timestampMs(lastReceivedGpsTimestamp)) / 1000)
+        : null;
+      if (receivedAgeSeconds !== null) {
+        reasons.push(`GPS position was last received ${Math.round(receivedAgeSeconds)} seconds ago.`);
+      }
+    }
   }
 
   const shouldRealignIntegrity =
@@ -237,6 +254,7 @@ function evaluateNavigationIntegrity(sample, previousState = null, options = {})
       position,
       fixValid,
       positionTimestamp: sample.positionTimestamp || null,
+      lastReceivedPositionTimestamp: lastReceivedGpsTimestamp,
       positionAgeSeconds,
       hdop: Number.isFinite(hdop) ? hdop : null,
       satellites: Number.isFinite(satellites) ? satellites : null,

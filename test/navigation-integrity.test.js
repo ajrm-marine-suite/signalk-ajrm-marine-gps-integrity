@@ -368,6 +368,48 @@ test("fresh GPS rejected by independent DR mismatch stays suspect, not lost", ()
   assert.equal(state.counters.lostFixes, 0);
 });
 
+test("lost GPS reports time since last received position, not stale trusted baseline", () => {
+  let state = evaluateNavigationIntegrity({
+    timestamp: "2026-06-22T12:00:00.000Z",
+    position: { latitude: 56, longitude: -5 },
+    speedOverGround: 2.2,
+    courseOverGroundTrue: Math.PI / 2,
+  }, null, {
+    warningDrDiscrepancyMeters: 20,
+    alarmDrDiscrepancyMeters: 40,
+    gpsLostSeconds: 15,
+    integrityDrRealignSeconds: 300,
+  });
+
+  state = evaluateNavigationIntegrity({
+    timestamp: "2026-06-22T12:06:00.000Z",
+    position: { latitude: 56, longitude: -5 },
+    positionTimestamp: "2026-06-22T12:06:00.000Z",
+    speedOverGround: 2.2,
+    courseOverGroundTrue: Math.PI / 2,
+  }, state, {
+    warningDrDiscrepancyMeters: 20,
+    alarmDrDiscrepancyMeters: 40,
+    gpsLostSeconds: 15,
+    integrityDrRealignSeconds: 300,
+  });
+
+  assert.equal(state.trust, "suspect");
+  assert.match(state.reasons.join(" "), /Last trusted GPS fix is 360 seconds old/);
+
+  state = evaluateNavigationIntegrity({
+    timestamp: "2026-06-22T12:06:02.000Z",
+    position: null,
+    fixValid: false,
+  }, state, {
+    gpsLostSeconds: 15,
+  });
+
+  assert.equal(state.trust, "lost");
+  assert.match(state.reasons.join(" "), /GPS position was last received 2 seconds ago/);
+  assert.doesNotMatch(state.reasons.join(" "), /Last trusted GPS fix is 362 seconds old/);
+});
+
 test("does not count startup with no GPS as an outage before the first trusted fix", () => {
   const startup = evaluateNavigationIntegrity({
     timestamp: "2026-06-22T12:00:00.000Z",

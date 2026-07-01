@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.14
+
+- For lost-GPS wording, report how recently a GPS position was received instead
+  of how long ago GPS Integrity last accepted a trusted fix. This avoids
+  misleading messages after a period of suspect/rejected GPS fixes.
+
 ## 0.5.13
 
 - Add an explicit tide/current-only dead-reckoning source so operational DR
