@@ -128,6 +128,57 @@ test("falls back to SOG and COG when the water speed log reads zero while moving
   assert.ok(Math.abs(second.deadReckoning.position.latitude - 56) < 0.00002);
 });
 
+test("uses tide-only dead reckoning when GPS is lost and the boat has no reliable motion vector", () => {
+  const first = evaluateNavigationIntegrity({
+    timestamp: "2026-06-22T12:00:00.000Z",
+    position: { latitude: 56, longitude: -5 },
+    speedThroughWater: 0,
+    speedOverGround: 0,
+    courseOverGroundTrue: 0,
+    currentSetTrue: Math.PI / 2,
+    currentDrift: 1,
+  });
+  const second = evaluateNavigationIntegrity({
+    timestamp: "2026-06-22T12:00:10.000Z",
+    position: null,
+    speedThroughWater: 0,
+    speedOverGround: 0,
+    courseOverGroundTrue: 0,
+    currentSetTrue: Math.PI / 2,
+    currentDrift: 1,
+    fixValid: false,
+  }, first);
+
+  assert.equal(second.deadReckoning.source, "tide-current");
+  assert.ok(second.deadReckoning.position.longitude > -5);
+  assert.equal(second.vectors.courseOverGround.source, "tide-current");
+});
+
+test("uses tide-only dead reckoning when STW is present but heading is unavailable during GPS loss", () => {
+  const first = evaluateNavigationIntegrity({
+    timestamp: "2026-06-22T12:00:00.000Z",
+    position: { latitude: 56, longitude: -5 },
+    speedThroughWater: 2,
+    speedOverGround: 0,
+    courseOverGroundTrue: 0,
+    currentSetTrue: 0,
+    currentDrift: 1,
+  });
+  const second = evaluateNavigationIntegrity({
+    timestamp: "2026-06-22T12:00:10.000Z",
+    position: null,
+    speedThroughWater: 2,
+    speedOverGround: 0,
+    courseOverGroundTrue: 0,
+    currentSetTrue: 0,
+    currentDrift: 1,
+    fixValid: false,
+  }, first);
+
+  assert.equal(second.deadReckoning.source, "tide-current");
+  assert.ok(second.deadReckoning.position.latitude > 56);
+});
+
 test("does not add tide again when independent DR uses COG/SOG", () => {
   const start = { latitude: 56, longitude: -5 };
   const first = evaluateNavigationIntegrity({
@@ -520,7 +571,7 @@ test("operational DR drifts on tide when GPS is lost and the boat is stopped", (
   }, first);
 
   assert.equal(lost.trust, "lost");
-  assert.equal(lost.operationalDeadReckoning.source, "heading-stw-current");
+  assert.equal(lost.operationalDeadReckoning.source, "tide-current");
   assert.ok(lost.operationalDeadReckoning.position.longitude > start.longitude);
   assert.ok(Math.abs(lost.operationalDeadReckoning.position.latitude - start.latitude) < 0.00002);
   assert.ok(_private.distanceMeters(start, lost.operationalDeadReckoning.position) > 9);

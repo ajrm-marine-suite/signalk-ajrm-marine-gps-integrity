@@ -432,6 +432,10 @@ function makeDerivedOverGroundVector(sample, settings) {
 
 function currentVectorForMotion(motion, sample) {
   if (motion?.source !== "heading-stw") return { east: 0, north: 0, available: false };
+  return currentVector(sample);
+}
+
+function currentVector(sample) {
   const currentSet = finiteNumber(sample.currentSetTrue);
   const currentDrift = finiteNumber(sample.currentDrift);
   if (!Number.isFinite(currentSet) || !Number.isFinite(currentDrift)) {
@@ -492,6 +496,12 @@ function drMotion(sample, settings) {
   }
   if (Number.isFinite(sog) && sog >= settings.minReliableSogMps && Number.isFinite(cog)) {
     return { speed: sog, bearing: cog, source: "cog-sog" };
+  }
+  const current = currentVector(sample);
+  if (current.available) {
+    const currentSet = finiteNumber(sample.currentSetTrue);
+    const currentDrift = finiteNumber(sample.currentDrift);
+    return { speed: currentDrift, bearing: currentSet, source: "tide-current" };
   }
   if (Number.isFinite(stw) && Number.isFinite(heading)) {
     return { speed: stw, bearing: heading, source: "heading-stw" };

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.13
+
+- Add an explicit tide/current-only dead-reckoning source so operational DR
+  continues to drift when GPS is lost, SOG/COG are unavailable or zero, and the
+  boat has no reliable heading/STW vector.
+
 ## 0.5.12
 
 - Add Signal K AppStore relationship metadata recommending DR Plotter as the
