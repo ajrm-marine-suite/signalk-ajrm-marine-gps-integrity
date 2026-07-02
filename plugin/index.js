@@ -575,6 +575,16 @@ function sampleFromSignalK(app) {
     headingMagnetic: getSelfEntry(app, "navigation.headingMagnetic"),
     speedThroughWater: getSelfEntry(app, "navigation.speedThroughWater"),
   };
+  const currentSetEntry = firstEntry(app, [
+    "environment.current.setTrue",
+    "environment.tide.setTrue",
+    "environment.water.current.setTrue",
+  ]);
+  const currentDriftEntry = firstEntry(app, [
+    "environment.current.drift",
+    "environment.tide.drift",
+    "environment.water.current.drift",
+  ]);
   const source = chooseNavigationSource(entries);
   const position = readEntryValue(entries.position, source);
   const positionTimestampMs = sourceTimestamp(entries.position, source);
@@ -583,6 +593,10 @@ function sampleFromSignalK(app) {
   const headingTrueTimestampMs = sourceTimestamp(entries.headingTrue, source);
   const headingMagneticTimestampMs = sourceTimestamp(entries.headingMagnetic, source);
   const speedThroughWaterTimestampMs = sourceTimestamp(entries.speedThroughWater, source);
+  const currentSetSource = defaultEntrySource(currentSetEntry);
+  const currentDriftSource = defaultEntrySource(currentDriftEntry);
+  const currentSetTimestampMs = sourceTimestamp(currentSetEntry, currentSetSource);
+  const currentDriftTimestampMs = sourceTimestamp(currentDriftEntry, currentDriftSource);
   return {
     timestamp: new Date().toISOString(),
     source,
@@ -602,16 +616,10 @@ function sampleFromSignalK(app) {
     speedThroughWaterTimestamp: speedThroughWaterTimestampMs
       ? new Date(speedThroughWaterTimestampMs).toISOString()
       : null,
-    currentSetTrue: firstPath(app, [
-      "environment.current.setTrue",
-      "environment.tide.setTrue",
-      "environment.water.current.setTrue",
-    ]),
-    currentDrift: firstPath(app, [
-      "environment.current.drift",
-      "environment.tide.drift",
-      "environment.water.current.drift",
-    ]),
+    currentSetTrue: readEntryValue(currentSetEntry, currentSetSource),
+    currentSetTrueTimestamp: currentSetTimestampMs ? new Date(currentSetTimestampMs).toISOString() : null,
+    currentDrift: readEntryValue(currentDriftEntry, currentDriftSource),
+    currentDriftTimestamp: currentDriftTimestampMs ? new Date(currentDriftTimestampMs).toISOString() : null,
     hdop: firstPath(app, [
       "navigation.gnss.horizontalDilution",
       "navigation.gnss.hdop",
@@ -701,6 +709,10 @@ function sourceTimestamp(entry, source) {
   return Number.isFinite(ms) ? ms : 0;
 }
 
+function defaultEntrySource(entry) {
+  return entry?.$source || Object.keys(entry?.values || {})[0] || "";
+}
+
 function isPosition(value) {
   return Number.isFinite(Number(value?.latitude)) && Number.isFinite(Number(value?.longitude));
 }
@@ -711,9 +723,15 @@ function finiteNumber(value) {
 }
 
 function firstPath(app, paths) {
+  const entry = firstEntry(app, paths);
+  return entry === undefined ? undefined : readEntryValue(entry, defaultEntrySource(entry));
+}
+
+function firstEntry(app, paths) {
   for (const path of paths) {
-    const value = getSelfPath(app, path);
-    if (value !== undefined && value !== null) return value;
+    const entry = getSelfEntry(app, path);
+    const value = readEntryValue(entry, defaultEntrySource(entry));
+    if (value !== undefined && value !== null) return entry;
   }
   return undefined;
 }

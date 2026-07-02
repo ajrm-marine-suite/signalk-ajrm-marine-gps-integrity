@@ -17,14 +17,19 @@ function evaluateNavigationIntegrity(sample, previousState = null, options = {})
     ? Math.max(0, (nowMs - positionTimestampMs) / 1000)
     : null;
   const positionFresh = positionAgeSeconds === null || positionAgeSeconds <= settings.gpsLostSeconds;
-  const motionSample = freshNavigationSample(sample, nowMs, settings);
+  const rawMotionSample = freshNavigationSample(sample, nowMs, settings);
   const hdop = finiteNumber(sample.hdop);
   const satellites = finiteNumber(sample.satellites);
   const fixValid = sample.fixValid !== false && Boolean(position) && positionFresh;
+  let motionSample = navigationSampleWithTrustedCurrent(rawMotionSample, previousState, {
+    allowLiveCurrent: fixValid,
+    nowMs,
+  });
   const reasons = [];
   let trust = "normal";
   let acceptedGps = false;
   let lastTrustedFix = previousState?.lastTrustedFix || null;
+  let lastTrustedCurrent = previousState?.lastTrustedCurrent || null;
   let operationalDeadReckoning = null;
   let integrityDeadReckoning = null;
   const previousOperationalDr = previousState?.operationalDeadReckoning || previousState?.deadReckoning || null;
@@ -144,7 +149,14 @@ function evaluateNavigationIntegrity(sample, previousState = null, options = {})
       hdop: Number.isFinite(hdop) ? hdop : null,
       satellites: Number.isFinite(satellites) ? satellites : null,
     };
+    const liveCurrent = currentSnapshotFromSample(rawMotionSample, nowMs);
+    if (liveCurrent) lastTrustedCurrent = liveCurrent;
     pendingGpsCandidate = null;
+  } else {
+    motionSample = navigationSampleWithTrustedCurrent(rawMotionSample, previousState, {
+      allowLiveCurrent: false,
+      nowMs,
+    });
   }
 
   const ageSeconds = lastTrustedFix ? Math.max(0, (nowMs - timestampMs(lastTrustedFix.timestamp)) / 1000) : null;
@@ -263,6 +275,8 @@ function evaluateNavigationIntegrity(sample, previousState = null, options = {})
       headingTrue: finiteOrNull(motionSample.headingTrue),
     },
     lastTrustedFix,
+    lastTrustedCurrent,
+    current: currentStateFromSample(motionSample),
     pendingGpsCandidate,
     degradedSignalActive: (
       (Number.isFinite(hdop) && hdop > settings.maxHdop) ||
@@ -340,6 +354,105 @@ function freshTimedValue(value, timestamp, nowMs, settings) {
   const valueTimestampMs = timestampMs(timestamp);
   if (!valueTimestampMs) return value;
   return nowMs - valueTimestampMs <= settings.gpsLostSeconds * 1000 ? value : undefined;
+}
+
+function navigationSampleWithTrustedCurrent(sample, previousState, { allowLiveCurrent, nowMs }) {
+  const liveCurrent = currentSnapshotFromSample(sample, nowMs);
+  if (allowLiveCurrent && liveCurrent) {
+    return {
+      ...sample,
+      currentSetTrue: liveCurrent.setTrue,
+      currentDrift: liveCurrent.drift,
+      currentTimestamp: liveCurrent.timestamp,
+      currentSource: "live",
+      currentAgeSeconds: 0,
+    };
+  }
+
+  const retainedCurrent = normalizeCurrentSnapshot(previousState?.lastTrustedCurrent);
+  if (retainedCurrent) {
+    const currentTimestampMs = timestampMs(retainedCurrent.timestamp);
+    return {
+      ...sample,
+      currentSetTrue: retainedCurrent.setTrue,
+      currentDrift: retainedCurrent.drift,
+      currentTimestamp: retainedCurrent.timestamp,
+      currentSource: "last-trusted-current",
+      currentAgeSeconds: currentTimestampMs ? Math.max(0, (nowMs - currentTimestampMs) / 1000) : null,
+    };
+  }
+
+  return {
+    ...sample,
+    currentSetTrue: undefined,
+    currentDrift: undefined,
+    currentTimestamp: null,
+    currentSource: "unavailable",
+    currentAgeSeconds: null,
+  };
+}
+
+function currentSnapshotFromSample(sample, nowMs) {
+  const setTrue = finiteNumber(sample.currentSetTrue);
+  const drift = finiteNumber(sample.currentDrift);
+  if (!Number.isFinite(setTrue) || !Number.isFinite(drift)) return null;
+  const timestamp =
+    sample.currentTimestamp ||
+    latestTimestamp(sample.currentSetTrueTimestamp, sample.currentDriftTimestamp) ||
+    sample.timestamp ||
+    new Date(nowMs).toISOString();
+  return {
+    setTrue,
+    drift,
+    setTrueDegrees: normalizeDegrees(setTrue * DEG_PER_RAD),
+    driftKnots: drift * MPS_TO_KNOTS,
+    timestamp,
+  };
+}
+
+function normalizeCurrentSnapshot(value) {
+  const setTrue = finiteNumber(value?.setTrue);
+  const drift = finiteNumber(value?.drift);
+  if (!Number.isFinite(setTrue) || !Number.isFinite(drift)) return null;
+  return {
+    setTrue,
+    drift,
+    setTrueDegrees: normalizeDegrees(setTrue * DEG_PER_RAD),
+    driftKnots: drift * MPS_TO_KNOTS,
+    timestamp: value.timestamp || null,
+  };
+}
+
+function currentStateFromSample(sample) {
+  const setTrue = finiteNumber(sample.currentSetTrue);
+  const drift = finiteNumber(sample.currentDrift);
+  if (!Number.isFinite(setTrue) || !Number.isFinite(drift)) {
+    return {
+      available: false,
+      source: sample.currentSource || "unavailable",
+      ageSeconds: null,
+      timestamp: null,
+    };
+  }
+  return {
+    available: true,
+    source: sample.currentSource || "live",
+    setTrue,
+    setTrueDegrees: normalizeDegrees(setTrue * DEG_PER_RAD),
+    drift,
+    driftKnots: drift * MPS_TO_KNOTS,
+    timestamp: sample.currentTimestamp || null,
+    ageSeconds: sample.currentAgeSeconds ?? null,
+  };
+}
+
+function latestTimestamp(...values) {
+  let latest = null;
+  for (const value of values) {
+    const ms = timestampMs(value);
+    if (ms && (!latest || ms > latest.ms)) latest = { value, ms };
+  }
+  return latest?.value || null;
 }
 
 function propagateDeadReckoning(previousState, sample, settings, nowMs) {

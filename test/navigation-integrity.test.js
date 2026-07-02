@@ -87,6 +87,8 @@ test("propagates dead reckoning using heading, STW, and current", () => {
     position: { latitude: 56, longitude: -5 },
     headingTrue: 0,
     speedThroughWater: 2,
+    currentSetTrue: Math.PI / 2,
+    currentDrift: 1,
   });
   const second = evaluateNavigationIntegrity({
     timestamp: "2026-06-22T12:00:10.000Z",
@@ -102,6 +104,69 @@ test("propagates dead reckoning using heading, STW, and current", () => {
   assert.ok(second.deadReckoning.position.longitude > -5);
   assert.equal(second.deadReckoning.source, "heading-stw-current");
   assert.equal(second.counters.lostFixes, 1);
+});
+
+test("uses the last trusted current vector after GPS is lost", () => {
+  const start = { latitude: 56, longitude: -5 };
+  const first = evaluateNavigationIntegrity({
+    timestamp: "2026-06-22T12:00:00.000Z",
+    position: start,
+    headingTrue: 0,
+    speedThroughWater: 0,
+    speedOverGround: 0,
+    courseOverGroundTrue: 0,
+    currentSetTrue: Math.PI / 2,
+    currentDrift: 1,
+  });
+  const lost = evaluateNavigationIntegrity({
+    timestamp: "2026-06-22T12:00:10.000Z",
+    position: null,
+    headingTrue: 0,
+    speedThroughWater: 0,
+    speedOverGround: 0,
+    courseOverGroundTrue: 0,
+    currentSetTrue: Math.PI,
+    currentDrift: 5,
+    fixValid: false,
+  }, first);
+
+  assert.equal(first.lastTrustedCurrent.setTrue, Math.PI / 2);
+  assert.equal(first.lastTrustedCurrent.drift, 1);
+  assert.equal(lost.current.source, "last-trusted-current");
+  assert.equal(lost.current.setTrue, Math.PI / 2);
+  assert.equal(lost.current.drift, 1);
+  assert.equal(lost.operationalDeadReckoning.source, "tide-current");
+  assert.ok(lost.operationalDeadReckoning.position.longitude > start.longitude);
+  assert.ok(Math.abs(lost.operationalDeadReckoning.position.latitude - start.latitude) < 0.00002);
+  assert.ok(_private.distanceMeters(start, lost.operationalDeadReckoning.position) > 9);
+  assert.ok(_private.distanceMeters(start, lost.operationalDeadReckoning.position) < 11);
+});
+
+test("does not trust live current values during GPS loss before a current baseline exists", () => {
+  const start = { latitude: 56, longitude: -5 };
+  const first = evaluateNavigationIntegrity({
+    timestamp: "2026-06-22T12:00:00.000Z",
+    position: start,
+    headingTrue: 0,
+    speedThroughWater: 0,
+    speedOverGround: 0,
+    courseOverGroundTrue: 0,
+  });
+  const lost = evaluateNavigationIntegrity({
+    timestamp: "2026-06-22T12:00:10.000Z",
+    position: null,
+    headingTrue: 0,
+    speedThroughWater: 0,
+    speedOverGround: 0,
+    courseOverGroundTrue: 0,
+    currentSetTrue: Math.PI / 2,
+    currentDrift: 5,
+    fixValid: false,
+  }, first);
+
+  assert.equal(lost.current.available, false);
+  assert.equal(lost.operationalDeadReckoning.source, "heading-stw");
+  assert.deepEqual(lost.operationalDeadReckoning.position, start);
 });
 
 test("falls back to SOG and COG when the water speed log reads zero while moving", () => {

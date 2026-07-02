@@ -11,6 +11,16 @@ test("samples wrapped Signal K self-path values", () => {
     "navigation.courseOverGroundTrue": { value: 1.2, timestamp: "2026-06-22T12:00:00.200Z" },
     "navigation.headingTrue": { value: 1.1, timestamp: "2026-06-22T12:00:00.300Z" },
     "navigation.speedThroughWater": { value: 1.9, timestamp: "2026-06-22T12:00:00.400Z" },
+    "environment.current.setTrue": {
+      $source: "derived-current",
+      values: {
+        "derived-current": { value: 1.57, timestamp: "2026-06-22T12:00:00.500Z" },
+      },
+    },
+    "environment.current.drift": {
+      value: 0.6,
+      timestamp: "2026-06-22T12:00:00.600Z",
+    },
     "navigation.gnss.horizontalDilution": { value: 0.8 },
     "navigation.gnss.satellites": { value: 9 },
   };
@@ -26,6 +36,10 @@ test("samples wrapped Signal K self-path values", () => {
   assert.equal(sample.speedOverGroundTimestamp, "2026-06-22T12:00:00.100Z");
   assert.equal(sample.headingTrue, 1.1);
   assert.equal(sample.headingTrueTimestamp, "2026-06-22T12:00:00.300Z");
+  assert.equal(sample.currentSetTrue, 1.57);
+  assert.equal(sample.currentSetTrueTimestamp, "2026-06-22T12:00:00.500Z");
+  assert.equal(sample.currentDrift, 0.6);
+  assert.equal(sample.currentDriftTimestamp, "2026-06-22T12:00:00.600Z");
   assert.equal(sample.hdop, 0.8);
   assert.equal(sample.satellites, 9);
 });
