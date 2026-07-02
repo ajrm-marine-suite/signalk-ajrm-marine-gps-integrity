@@ -20,7 +20,8 @@ function evaluateNavigationIntegrity(sample, previousState = null, options = {})
   const rawMotionSample = freshNavigationSample(sample, nowMs, settings);
   const hdop = finiteNumber(sample.hdop);
   const satellites = finiteNumber(sample.satellites);
-  const fixValid = sample.fixValid !== false && Boolean(position) && positionFresh;
+  const explicitGpsUnavailable = sample.explicitGpsUnavailable === true;
+  const fixValid = sample.fixValid !== false && !explicitGpsUnavailable && Boolean(position) && positionFresh;
   let motionSample = navigationSampleWithTrustedCurrent(rawMotionSample, previousState, {
     allowLiveCurrent: fixValid,
     nowMs,
@@ -49,7 +50,9 @@ function evaluateNavigationIntegrity(sample, previousState = null, options = {})
   if (!fixValid) {
     trust = "lost";
     reasons.push(
-      position && !positionFresh
+      explicitGpsUnavailable
+        ? "GPS source reports no fix."
+        : position && !positionFresh
         ? `GPS position is stale (${Math.round(positionAgeSeconds)} seconds old).`
         : "GPS position is missing or invalid.",
     );
@@ -270,6 +273,7 @@ function evaluateNavigationIntegrity(sample, previousState = null, options = {})
       positionAgeSeconds,
       hdop: Number.isFinite(hdop) ? hdop : null,
       satellites: Number.isFinite(satellites) ? satellites : null,
+      explicitGpsUnavailable,
       speedOverGround: finiteOrNull(motionSample.speedOverGround),
       courseOverGroundTrue: finiteOrNull(motionSample.courseOverGroundTrue),
       headingTrue: finiteOrNull(motionSample.headingTrue),

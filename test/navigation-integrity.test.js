@@ -142,6 +142,31 @@ test("uses the last trusted current vector after GPS is lost", () => {
   assert.ok(_private.distanceMeters(start, lost.operationalDeadReckoning.position) < 11);
 });
 
+test("explicit GNSS no-fix beats a fresh cached position", () => {
+  const start = { latitude: 56, longitude: -5 };
+  const first = evaluateNavigationIntegrity({
+    timestamp: "2026-06-22T12:00:00.000Z",
+    position: start,
+    positionTimestamp: "2026-06-22T12:00:00.000Z",
+    hdop: 0.8,
+    satellites: 8,
+  });
+  const lost = evaluateNavigationIntegrity({
+    timestamp: "2026-06-22T12:00:02.000Z",
+    position: start,
+    positionTimestamp: "2026-06-22T12:00:00.000Z",
+    explicitGpsUnavailable: true,
+    satellites: 0,
+  }, first);
+
+  assert.equal(lost.trust, "lost");
+  assert.equal(lost.acceptedGps, false);
+  assert.equal(lost.gps.fixValid, false);
+  assert.equal(lost.gps.explicitGpsUnavailable, true);
+  assert.match(lost.reasons.join(" "), /GPS source reports no fix/);
+  assert.equal(lost.counters.lostFixes, 1);
+});
+
 test("does not trust live current values during GPS loss before a current baseline exists", () => {
   const start = { latitude: 56, longitude: -5 };
   const first = evaluateNavigationIntegrity({

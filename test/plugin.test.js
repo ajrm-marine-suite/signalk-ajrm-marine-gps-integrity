@@ -158,6 +158,34 @@ test("fresh null GPS source beats stale valid position from another source", () 
   assert.equal(sample.fixValid, false);
 });
 
+test("explicit GNSS no-fix invalidates a cached position immediately", () => {
+  const paths = {
+    "navigation.position": {
+      value: { latitude: 56.21122, longitude: -5.55756 },
+      $source: "old-gps",
+      timestamp: "2026-07-02T18:30:00.000Z",
+    },
+    "navigation.gnss.methodQuality": {
+      value: "no GPS",
+      timestamp: "2026-07-02T18:30:03.000Z",
+    },
+    "navigation.gnss.satellites": {
+      value: 0,
+      timestamp: "2026-07-02T18:30:03.000Z",
+    },
+  };
+  const sample = pluginFactory._private.sampleFromSignalK({
+    getSelfPath(path) {
+      return paths[path];
+    },
+  });
+  assert.deepEqual(sample.position, { latitude: 56.21122, longitude: -5.55756 });
+  assert.equal(sample.methodQuality, "no GPS");
+  assert.equal(sample.satellites, 0);
+  assert.equal(sample.explicitGpsUnavailable, true);
+  assert.equal(sample.fixValid, false);
+});
+
 test("reads preferred distance unit from Signal K metadata", () => {
   assert.equal(pluginFactory._private.preferredDistanceUnit({
     getMetadata(path) {

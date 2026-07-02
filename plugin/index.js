@@ -597,6 +597,23 @@ function sampleFromSignalK(app) {
   const currentDriftSource = defaultEntrySource(currentDriftEntry);
   const currentSetTimestampMs = sourceTimestamp(currentSetEntry, currentSetSource);
   const currentDriftTimestampMs = sourceTimestamp(currentDriftEntry, currentDriftSource);
+  const methodQualityEntry = firstEntry(app, [
+    "navigation.gnss.methodQuality",
+    "navigation.gps.methodQuality",
+    "navigation.gnss.type",
+  ]);
+  const methodQualitySource = defaultEntrySource(methodQualityEntry);
+  const methodQualityTimestampMs = sourceTimestamp(methodQualityEntry, methodQualitySource);
+  const satellitesEntry = firstEntry(app, [
+    "navigation.gnss.satellites",
+    "navigation.gnss.satellitesInView",
+    "navigation.gps.satellites",
+  ]);
+  const satellitesSource = defaultEntrySource(satellitesEntry);
+  const satellitesTimestampMs = sourceTimestamp(satellitesEntry, satellitesSource);
+  const methodQuality = readEntryValue(methodQualityEntry, methodQualitySource);
+  const satellites = readEntryValue(satellitesEntry, satellitesSource);
+  const explicitGpsUnavailable = explicitNoGps(methodQuality, satellites);
   return {
     timestamp: new Date().toISOString(),
     source,
@@ -625,12 +642,12 @@ function sampleFromSignalK(app) {
       "navigation.gnss.hdop",
       "navigation.gps.horizontalDilution",
     ]),
-    satellites: firstPath(app, [
-      "navigation.gnss.satellites",
-      "navigation.gnss.satellitesInView",
-      "navigation.gps.satellites",
-    ]),
-    fixValid: position != null,
+    methodQuality,
+    methodQualityTimestamp: methodQualityTimestampMs ? new Date(methodQualityTimestampMs).toISOString() : null,
+    satellites,
+    satellitesTimestamp: satellitesTimestampMs ? new Date(satellitesTimestampMs).toISOString() : null,
+    explicitGpsUnavailable,
+    fixValid: position != null && !explicitGpsUnavailable,
   };
 }
 
@@ -711,6 +728,13 @@ function sourceTimestamp(entry, source) {
 
 function defaultEntrySource(entry) {
   return entry?.$source || Object.keys(entry?.values || {})[0] || "";
+}
+
+function explicitNoGps(methodQuality, satellites) {
+  const quality = String(methodQuality || "").trim().toLowerCase();
+  if (quality && /no\s*(gps|gnss|fix)|invalid|unavailable|none|lost/.test(quality)) return true;
+  const satelliteCount = Number(satellites);
+  return Number.isFinite(satelliteCount) && satelliteCount <= 0;
 }
 
 function isPosition(value) {
