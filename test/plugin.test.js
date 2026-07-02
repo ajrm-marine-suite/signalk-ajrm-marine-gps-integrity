@@ -103,6 +103,47 @@ test("treats wrapped null position as invalid GPS", () => {
   assert.equal(sample.fixValid, false);
 });
 
+test("fresh null GPS source beats stale valid position from another source", () => {
+  const paths = {
+    "navigation.position": {
+      value: { latitude: 56.21122, longitude: -5.55756 },
+      $source: "old-gps",
+      timestamp: "2026-07-02T17:20:26.918Z",
+      values: {
+        "old-gps": {
+          value: { latitude: 56.21122, longitude: -5.55756 },
+          timestamp: "2026-07-02T17:20:26.918Z",
+        },
+        "simulator": {
+          value: null,
+          timestamp: "2026-07-02T18:30:03.608Z",
+        },
+      },
+    },
+    "navigation.speedOverGround": {
+      values: {
+        "old-gps": { value: 2.5, timestamp: "2026-07-02T17:20:26.918Z" },
+        "simulator": { value: null, timestamp: "2026-07-02T18:30:03.608Z" },
+      },
+    },
+    "navigation.courseOverGroundTrue": {
+      values: {
+        "old-gps": { value: 1.2, timestamp: "2026-07-02T17:20:26.918Z" },
+        "simulator": { value: null, timestamp: "2026-07-02T18:30:03.608Z" },
+      },
+    },
+  };
+  const sample = pluginFactory._private.sampleFromSignalK({
+    getSelfPath(path) {
+      return paths[path];
+    },
+  });
+  assert.equal(sample.source, "simulator");
+  assert.equal(sample.position, null);
+  assert.equal(sample.positionTimestamp, "2026-07-02T18:30:03.608Z");
+  assert.equal(sample.fixValid, false);
+});
+
 test("reads preferred distance unit from Signal K metadata", () => {
   assert.equal(pluginFactory._private.preferredDistanceUnit({
     getMetadata(path) {

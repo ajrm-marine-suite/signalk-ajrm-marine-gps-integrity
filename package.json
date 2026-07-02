@@ -1,6 +1,6 @@
 {
   "name": "signalk-ajrm-marine-gps-integrity",
-  "version": "0.5.14",
+  "version": "0.5.15",
   "description": "GNSS integrity monitor for AJRM Marine Suite.",
   "main": "plugin/index.js",
   "scripts": {

@@ -664,24 +664,33 @@ function chooseNavigationSource(entries) {
   let bestScore = -Infinity;
   for (const source of sources) {
     const position = readEntryValue(entries.position, source);
-    if (!isPosition(position)) continue;
+    const hasPositionValue = hasSourceValue(entries.position, source);
+    if (!hasPositionValue) continue;
+    const validPosition = isPosition(position);
     const sog = finiteNumber(readEntryValue(entries.speedOverGround, source));
     const stw = finiteNumber(readEntryValue(entries.speedThroughWater, source));
     const cog = finiteNumber(readEntryValue(entries.courseOverGroundTrue, source));
     const heading = finiteNumber(readEntryValue(entries.headingTrue, source));
     const timestamp = sourceTimestamp(entries.position, source);
-    let score = timestamp / 1000000000000;
-    if (Number.isFinite(sog) && sog > 0.05) score += 100;
-    if (Number.isFinite(stw) && stw > 0.05) score += 80;
-    if (Number.isFinite(cog)) score += 10;
-    if (Number.isFinite(heading)) score += 8;
-    if (source === entries.position?.$source) score += 1;
+    let score = timestamp;
+    if (validPosition) score += 500;
+    if (Number.isFinite(sog) && sog > 0.05) score += 2000;
+    if (Number.isFinite(stw) && stw > 0.05) score += 1500;
+    if (Number.isFinite(cog)) score += 200;
+    if (Number.isFinite(heading)) score += 100;
+    if (source === entries.position?.$source) score += 50;
     if (score > bestScore) {
       bestScore = score;
       best = source;
     }
   }
   return best || entries.position?.$source || "";
+}
+
+function hasSourceValue(entry, source) {
+  if (!entry || typeof entry !== "object") return false;
+  if (source && entry.values?.[source] && Object.hasOwn(entry.values[source], "value")) return true;
+  return source === entry.$source && Object.hasOwn(entry, "value");
 }
 
 function sourceTimestamp(entry, source) {
