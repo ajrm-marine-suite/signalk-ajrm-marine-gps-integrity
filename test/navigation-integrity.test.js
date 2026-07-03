@@ -746,6 +746,45 @@ test("healthy stationary GPS does not diverge from independent DR on tide alone"
   assert.ok(_private.distanceMeters(start, state.integrityDeadReckoning.position) < 1);
 });
 
+test("healthy stationary GPS realigns stale independent DR after tide-only drift", () => {
+  const start = { latitude: 56, longitude: -5 };
+  let state = evaluateNavigationIntegrity({
+    timestamp: "2026-06-22T12:00:00.000Z",
+    position: start,
+    headingTrue: 0,
+    speedThroughWater: 0,
+    speedOverGround: 0,
+    courseOverGroundTrue: 0,
+    currentSetTrue: Math.PI / 2,
+    currentDrift: 2,
+  });
+  state = {
+    ...state,
+    integrityDeadReckoning: {
+      ...state.integrityDeadReckoning,
+      position: { latitude: 56, longitude: -4.998 },
+      lastRealignedAt: "2026-06-22T11:55:00.000Z",
+    },
+  };
+
+  state = evaluateNavigationIntegrity({
+    timestamp: "2026-06-22T12:02:00.000Z",
+    position: start,
+    headingTrue: 0,
+    speedThroughWater: 0,
+    speedOverGround: 0,
+    courseOverGroundTrue: 0,
+    currentSetTrue: Math.PI / 2,
+    currentDrift: 2,
+  }, state);
+
+  assert.equal(state.trust, "normal");
+  assert.equal(state.acceptedGps, true);
+  assert.equal(state.reasons.length, 0);
+  assert.equal(state.integrityDeadReckoning.source, "gps-realigned");
+  assert.ok(_private.distanceMeters(start, state.integrityDeadReckoning.position) < 1);
+});
+
 test("publishes single-arrow vector only when heading is available", () => {
   const state = evaluateNavigationIntegrity({
     timestamp: "2026-06-22T12:00:00.000Z",

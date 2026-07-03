@@ -7,6 +7,7 @@ const DEG_PER_RAD = 180 / Math.PI;
 const METERS_PER_NM = 1852;
 const METERS_PER_STATUTE_MILE = 1609.344;
 const METERS_PER_FOOT = 0.3048;
+const STATIONARY_REALIGN_TOLERANCE_METERS = 1;
 
 function evaluateNavigationIntegrity(sample, previousState = null, options = {}) {
   const settings = normalizeOptions(options);
@@ -66,12 +67,23 @@ function evaluateNavigationIntegrity(sample, previousState = null, options = {})
     reasons.push(`${satellites} satellites in view is below ${settings.minSatellites}.`);
   }
 
+  const stationaryGps = fixValid && position && stationaryGpsFix(sample, motionSample, settings);
+  const stationaryRealignTolerance = Math.min(
+    STATIONARY_REALIGN_TOLERANCE_METERS,
+    settings.positionNoiseAllowanceMeters,
+  );
+  const stationaryNearTrustedFix =
+    stationaryGps &&
+    (!lastTrustedFix?.position ||
+      distanceMeters(lastTrustedFix.position, position) <= stationaryRealignTolerance);
   const stationaryAtTrustedFix =
-    fixValid &&
-    position &&
+    stationaryNearTrustedFix &&
     previousIntegrityDr?.position &&
-    stationaryGpsFix(sample, motionSample, settings) &&
     distanceMeters(previousIntegrityDr.position, position) <= settings.positionNoiseAllowanceMeters;
+  const stationaryNeedsRealign =
+    stationaryNearTrustedFix &&
+    previousIntegrityDr?.position &&
+    distanceMeters(previousIntegrityDr.position, position) > settings.positionNoiseAllowanceMeters;
   const integrityMotionSample = stationaryAtTrustedFix
     ? {
         ...motionSample,
@@ -131,6 +143,8 @@ function evaluateNavigationIntegrity(sample, previousState = null, options = {})
 
   if (resetBaselineFromCandidate && position) {
     integrityDeadReckoning = makeRealignedDrTrack(position, sample, motionSample, settings, trust, nowMs);
+  } else if (stationaryNeedsRealign && position) {
+    integrityDeadReckoning = makeRealignedDrTrack(position, sample, integrityMotionSample, settings, trust, nowMs);
   } else if (fixValid && integrityDeadReckoning?.position && !stationaryAtTrustedFix) {
     const discrepancy = distanceMeters(integrityDeadReckoning.position, position);
     if (discrepancy > settings.warningDrDiscrepancyMeters) {
