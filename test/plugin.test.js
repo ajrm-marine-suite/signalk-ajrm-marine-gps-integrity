@@ -158,6 +158,43 @@ test("fresh null GPS source beats stale valid position from another source", () 
   assert.equal(sample.fixValid, false);
 });
 
+test("uses freshest finite current values when the default source is stale", () => {
+  const paths = {
+    "navigation.position": {
+      value: { latitude: 56.21122, longitude: -5.55756 },
+      timestamp: "2026-07-03T16:54:03.610Z",
+    },
+    "environment.current.setTrue": {
+      value: Math.PI,
+      $source: "stale-current",
+      timestamp: "2026-07-03T14:58:53.548Z",
+      values: {
+        "stale-current": { value: Math.PI, timestamp: "2026-07-03T14:58:53.548Z" },
+        "ajrm-marine-bite": { value: Math.PI / 2, timestamp: "2026-07-03T16:54:03.610Z" },
+      },
+    },
+    "environment.current.drift": {
+      value: 0,
+      $source: "stale-current",
+      timestamp: "2026-07-03T14:58:53.548Z",
+      values: {
+        "stale-current": { value: 0, timestamp: "2026-07-03T14:58:53.548Z" },
+        "ajrm-marine-bite": { value: 0.514444, timestamp: "2026-07-03T16:54:03.610Z" },
+      },
+    },
+  };
+  const sample = pluginFactory._private.sampleFromSignalK({
+    getSelfPath(path) {
+      return paths[path];
+    },
+  });
+
+  assert.equal(sample.currentSetTrue, Math.PI / 2);
+  assert.equal(sample.currentSetTrueTimestamp, "2026-07-03T16:54:03.610Z");
+  assert.equal(sample.currentDrift, 0.514444);
+  assert.equal(sample.currentDriftTimestamp, "2026-07-03T16:54:03.610Z");
+});
+
 test("explicit GNSS no-fix invalidates a cached position immediately", () => {
   const paths = {
     "navigation.position": {

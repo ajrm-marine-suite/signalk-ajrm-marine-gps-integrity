@@ -585,6 +585,8 @@ function sampleFromSignalK(app) {
     "environment.tide.drift",
     "environment.water.current.drift",
   ]);
+  const currentSetValue = freshestFiniteEntryValue(currentSetEntry);
+  const currentDriftValue = freshestFiniteEntryValue(currentDriftEntry);
   const source = chooseNavigationSource(entries);
   const position = readEntryValue(entries.position, source);
   const positionTimestampMs = sourceTimestamp(entries.position, source);
@@ -593,10 +595,8 @@ function sampleFromSignalK(app) {
   const headingTrueTimestampMs = sourceTimestamp(entries.headingTrue, source);
   const headingMagneticTimestampMs = sourceTimestamp(entries.headingMagnetic, source);
   const speedThroughWaterTimestampMs = sourceTimestamp(entries.speedThroughWater, source);
-  const currentSetSource = defaultEntrySource(currentSetEntry);
-  const currentDriftSource = defaultEntrySource(currentDriftEntry);
-  const currentSetTimestampMs = sourceTimestamp(currentSetEntry, currentSetSource);
-  const currentDriftTimestampMs = sourceTimestamp(currentDriftEntry, currentDriftSource);
+  const currentSetTimestampMs = currentSetValue.timestampMs;
+  const currentDriftTimestampMs = currentDriftValue.timestampMs;
   const methodQualityEntry = firstEntry(app, [
     "navigation.gnss.methodQuality",
     "navigation.gps.methodQuality",
@@ -633,9 +633,9 @@ function sampleFromSignalK(app) {
     speedThroughWaterTimestamp: speedThroughWaterTimestampMs
       ? new Date(speedThroughWaterTimestampMs).toISOString()
       : null,
-    currentSetTrue: readEntryValue(currentSetEntry, currentSetSource),
+    currentSetTrue: currentSetValue.value,
     currentSetTrueTimestamp: currentSetTimestampMs ? new Date(currentSetTimestampMs).toISOString() : null,
-    currentDrift: readEntryValue(currentDriftEntry, currentDriftSource),
+    currentDrift: currentDriftValue.value,
     currentDriftTimestamp: currentDriftTimestampMs ? new Date(currentDriftTimestampMs).toISOString() : null,
     hdop: firstPath(app, [
       "navigation.gnss.horizontalDilution",
@@ -728,6 +728,36 @@ function sourceTimestamp(entry, source) {
 
 function defaultEntrySource(entry) {
   return entry?.$source || Object.keys(entry?.values || {})[0] || "";
+}
+
+function freshestFiniteEntryValue(entry) {
+  const candidates = [];
+  if (entry && typeof entry === "object" && Object.hasOwn(entry, "value")) {
+    candidates.push({
+      value: entry.value,
+      timestampMs: sourceTimestamp(entry, ""),
+      source: entry.$source || "",
+    });
+  }
+  for (const [source, sourceEntry] of Object.entries(entry?.values || {})) {
+    if (sourceEntry && typeof sourceEntry === "object" && Object.hasOwn(sourceEntry, "value")) {
+      const timestampMs = Date.parse(sourceEntry.timestamp || "");
+      candidates.push({
+        value: sourceEntry.value,
+        timestampMs: Number.isFinite(timestampMs) ? timestampMs : 0,
+        source,
+      });
+    }
+  }
+  const finiteCandidates = candidates
+    .filter((candidate) => Number.isFinite(finiteNumber(candidate.value)))
+    .sort((left, right) => right.timestampMs - left.timestampMs);
+  const selected = finiteCandidates[0];
+  return {
+    value: selected ? selected.value : undefined,
+    timestampMs: selected ? selected.timestampMs : 0,
+    source: selected ? selected.source : "",
+  };
 }
 
 function explicitNoGps(methodQuality, satellites) {
