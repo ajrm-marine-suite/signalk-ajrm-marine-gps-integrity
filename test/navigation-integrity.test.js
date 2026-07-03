@@ -33,6 +33,11 @@ test("flags an impossible position jump as suspect", () => {
   assert.equal(second.counters.rejectedFixes, 1);
   assert.equal(second.counters.positionJumps, 1);
   assert.equal(second.counters.lostFixes, 0);
+  assert.equal(second.diagnostics.contract, "ajrm-marine-gps-integrity-diagnostics");
+  assert.equal(second.diagnostics.observed.positionPresent, true);
+  assert.equal(second.diagnostics.decision.positionJumpRejected, true);
+  assert.equal(second.diagnostics.thresholds.maxBoatSpeedKnots, 30);
+  assert.match(second.diagnostics.decision.reasons.join(" "), /Position jump/);
 });
 
 test("accepts a smooth shifted GPS track as a degraded baseline reset", () => {

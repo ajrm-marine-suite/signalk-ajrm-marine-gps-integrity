@@ -22,6 +22,10 @@ The provider publishes:
 The status includes the current GPS trust level, last trusted fix, operational
 dead reckoning, independent integrity dead reckoning, uncertainty radii, and
 vectors for heading through water, tide/current, and course over ground.
+`navigationIntegrity.diagnostics` records the observed inputs, decision flags,
+thresholds, current source, and DR uncertainty used for that evaluation so
+captured voyages can explain GPS loss, weak signal, jumps, and DR mismatch
+events later in AJRM Marine Voyage Viewer.
 
 This plugin owns the safety decision. Display apps should render its state
 rather than deriving their own GPS integrity policy from raw Signal K values.
