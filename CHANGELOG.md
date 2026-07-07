@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.22
+
+- Treat a coherent GPS track that remains above the configured maximum boat
+  speed as one sustained degraded GPS condition, rather than alternating every
+  evaluation between "position jump" and "track is now smooth".
+- Keep sustained over-speed GPS fixes out of the trusted baseline and skip
+  secondary DR-mismatch escalation for that already-untrusted GPS stream.
+- Lower GPS suspect/lost audio priority below traffic collision alarms so GPS
+  integrity context cannot starve collision-alarm speech.
+
 ## 0.5.14
 
 - For lost-GPS wording, report how recently a GPS position was received instead

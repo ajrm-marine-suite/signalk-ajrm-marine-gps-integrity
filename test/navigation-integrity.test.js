@@ -86,6 +86,37 @@ test("does not accept a second impossible shifted point as smooth", () => {
   assert.equal(jumpedAgain.acceptedGps, false);
 });
 
+test("treats a coherent over-limit GPS stream as sustained degraded instead of repeated jumps", () => {
+  const first = evaluateNavigationIntegrity({
+    timestamp: "2026-07-07T12:57:36.000Z",
+    position: { latitude: 56, longitude: -5 },
+  }, null, { maxBoatSpeedKnots: 30 });
+
+  const oneSecondAt50Kn = 25.7222;
+  const latStep = oneSecondAt50Kn / 111320;
+  const jumped = evaluateNavigationIntegrity({
+    timestamp: "2026-07-07T12:57:37.000Z",
+    position: { latitude: 56 + latStep, longitude: -5 },
+  }, first, { maxBoatSpeedKnots: 30 });
+  assert.equal(jumped.trust, "suspect");
+  assert.equal(jumped.acceptedGps, false);
+  assert.match(jumped.reasons.join(" "), /Position jump/);
+  assert.equal(jumped.counters.positionJumps, 1);
+
+  const sustained = evaluateNavigationIntegrity({
+    timestamp: "2026-07-07T12:57:38.000Z",
+    position: { latitude: 56 + latStep * 2, longitude: -5 },
+  }, jumped, { maxBoatSpeedKnots: 30 });
+
+  assert.equal(sustained.trust, "degraded");
+  assert.equal(sustained.acceptedGps, false);
+  assert.match(sustained.reasons.join(" "), /GPS track speed exceeds configured limit/);
+  assert.doesNotMatch(sustained.reasons.join(" "), /new track is now smooth/);
+  assert.equal(sustained.counters.positionJumps, 1);
+  assert.equal(sustained.pendingGpsCandidate.sustainedOverSpeed, true);
+  assert.equal(sustained.diagnostics.thresholds.overSpeedConfirmationSamples, 2);
+});
+
 test("propagates dead reckoning using heading, STW, and current", () => {
   const first = evaluateNavigationIntegrity({
     timestamp: "2026-06-22T12:00:00.000Z",

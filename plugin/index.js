@@ -491,7 +491,7 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
           lifecycle: "active",
           priority: {
             level: state.trust === "degraded" ? "warning" : "danger",
-            score: state.trust === "degraded" ? 500 : 850,
+            score: state.trust === "degraded" ? 500 : 750,
           },
           history: { policy: "on-resolve" },
           delivery: {

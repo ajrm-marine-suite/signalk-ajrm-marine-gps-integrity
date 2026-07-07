@@ -588,6 +588,7 @@ test("publishes continuous lost GPS as one stable active notification", async ()
 
   assert.equal(alarms.length, 1);
   assert.equal(alarms[0].value.data.ajrmMarineNotifications.delivery.preempt, false);
+  assert.equal(alarms[0].value.data.ajrmMarineNotifications.priority.score, 750);
   assert.match(
     alarms[0].value.data.ajrmMarineNotifications.eventId,
     /^signalk-ajrm-marine-gps-integrity:lost:/,
