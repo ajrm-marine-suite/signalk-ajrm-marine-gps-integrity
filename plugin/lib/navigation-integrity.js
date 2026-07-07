@@ -106,7 +106,7 @@ function evaluateNavigationIntegrity(sample, previousState = null, options = {})
         trust = maxTrust(trust, "degraded");
         gpsTrackOverSpeed = true;
         reasons.push(
-          `GPS track speed exceeds configured limit: ${formatNumber(speedKnots, 1)} kn over ground.`,
+          `GPS track speed exceeds configured limit: ${formatNumber(speedKnots, 1)} knots over ground.`,
         );
         pendingGpsCandidate = updatedCandidate;
       } else if (candidateAccepted) {
@@ -117,7 +117,7 @@ function evaluateNavigationIntegrity(sample, previousState = null, options = {})
       } else {
         trust = maxTrust(trust, "suspect");
         reasons.push(
-          `Position jump implies ${formatNumber(impliedSpeed * MPS_TO_KNOTS, 1)} kn over ground.`,
+          `Position jump implies ${formatNumber(impliedSpeed * MPS_TO_KNOTS, 1)} knots over ground.`,
         );
         positionJumpRejected = true;
         pendingGpsCandidate = updatedCandidate || {

@@ -101,6 +101,8 @@ test("treats a coherent over-limit GPS stream as sustained degraded instead of r
   assert.equal(jumped.trust, "suspect");
   assert.equal(jumped.acceptedGps, false);
   assert.match(jumped.reasons.join(" "), /Position jump/);
+  assert.match(jumped.reasons.join(" "), /knots over ground/);
+  assert.doesNotMatch(jumped.reasons.join(" "), /\bkn\b/);
   assert.equal(jumped.counters.positionJumps, 1);
 
   const sustained = evaluateNavigationIntegrity({
@@ -111,6 +113,8 @@ test("treats a coherent over-limit GPS stream as sustained degraded instead of r
   assert.equal(sustained.trust, "degraded");
   assert.equal(sustained.acceptedGps, false);
   assert.match(sustained.reasons.join(" "), /GPS track speed exceeds configured limit/);
+  assert.match(sustained.reasons.join(" "), /knots over ground/);
+  assert.doesNotMatch(sustained.reasons.join(" "), /\bkn\b/);
   assert.doesNotMatch(sustained.reasons.join(" "), /new track is now smooth/);
   assert.equal(sustained.counters.positionJumps, 1);
   assert.equal(sustained.pendingGpsCandidate.sustainedOverSpeed, true);

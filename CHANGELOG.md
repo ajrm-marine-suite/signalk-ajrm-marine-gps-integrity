@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.23
+
+- Expand GPS speed warning wording from `kn` to `knots` so Piper and other
+  speech engines do not read the unit abbreviation awkwardly.
+
 ## 0.5.22
 
 - Treat a coherent GPS track that remains above the configured maximum boat
