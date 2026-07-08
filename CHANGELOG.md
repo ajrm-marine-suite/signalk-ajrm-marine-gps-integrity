@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.24
+
+- Track dead-reckoning discrepancy state from the numeric evaluator result
+  instead of re-reading the English reason text.
+
 ## 0.5.23
 
 - Expand GPS speed warning wording from `kn` to `knots` so Piper and other

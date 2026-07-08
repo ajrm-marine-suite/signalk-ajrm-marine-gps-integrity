@@ -40,6 +40,7 @@ function evaluateNavigationIntegrity(sample, previousState = null, options = {})
   let resetBaselineFromCandidate = false;
   let positionJumpRejected = false;
   let gpsTrackOverSpeed = false;
+  let drDiscrepancyActive = false;
   const receivedGpsTimestamp = position
     ? new Date(positionTimestampMs || nowMs).toISOString()
     : null;
@@ -160,6 +161,7 @@ function evaluateNavigationIntegrity(sample, previousState = null, options = {})
     const discrepancy = distanceMeters(integrityDeadReckoning.position, position);
     if (discrepancy > settings.warningDrDiscrepancyMeters) {
       trust = maxTrust(trust, "degraded");
+      drDiscrepancyActive = true;
       reasons.push(
         `GPS differs from independent dead reckoning by ${formatSpokenDistance(discrepancy, settings.distanceDisplayUnit)}.`,
       );
@@ -280,7 +282,7 @@ function evaluateNavigationIntegrity(sample, previousState = null, options = {})
       (Number.isFinite(hdop) && hdop > settings.maxHdop) ||
       (Number.isFinite(satellites) && satellites < settings.minSatellites)
     ),
-    drDiscrepancy: reasons.some((reason) => reason.startsWith("GPS differs from independent dead reckoning")),
+    drDiscrepancy: drDiscrepancyActive,
   });
 
   return {
@@ -312,7 +314,7 @@ function evaluateNavigationIntegrity(sample, previousState = null, options = {})
       (Number.isFinite(hdop) && hdop > settings.maxHdop) ||
       (Number.isFinite(satellites) && satellites < settings.minSatellites)
     ),
-    drDiscrepancyActive: reasons.some((reason) => reason.startsWith("GPS differs from independent dead reckoning")),
+    drDiscrepancyActive,
     deadReckoning: operationalDeadReckoning,
     operationalDeadReckoning,
     integrityDeadReckoning,
@@ -336,7 +338,7 @@ function evaluateNavigationIntegrity(sample, previousState = null, options = {})
       degradedSignalActive:
         (Number.isFinite(hdop) && hdop > settings.maxHdop) ||
         (Number.isFinite(satellites) && satellites < settings.minSatellites),
-      drDiscrepancyActive: reasons.some((reason) => reason.startsWith("GPS differs from independent dead reckoning")),
+      drDiscrepancyActive,
       settings,
       operationalDeadReckoning,
       integrityDeadReckoning,
