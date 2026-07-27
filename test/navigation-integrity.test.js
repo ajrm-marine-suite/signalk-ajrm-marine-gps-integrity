@@ -4,6 +4,66 @@ const assert = require("node:assert/strict");
 const test = require("node:test");
 const { evaluateNavigationIntegrity, _private } = require("../plugin/lib/navigation-integrity");
 
+function qualifiedCurrent(setTrue, drift, timestamp, {
+  source = "independent-current",
+  gpsDependent = false,
+  origin = "measured-current",
+} = {}) {
+  return {
+    currentSetTrue: setTrue,
+    currentDrift: drift,
+    currentTimestamp: timestamp,
+    currentEvidence: {
+      setTrue,
+      drift,
+      source,
+      timestamp,
+      origin,
+      gpsDependent,
+      quality: { status: "good" },
+    },
+  };
+}
+
+function independentMotion({
+  headingTrue = 0,
+  speedThroughWater = 0,
+  leeway = 0,
+  currentSetTrue = 0,
+  currentDrift = 0,
+  timestamp,
+} = {}) {
+  return {
+    headingTrue,
+    headingTrueTimestamp: timestamp,
+    headingTrueEvidence: {
+      value: headingTrue,
+      source: "independent-compass",
+      timestamp,
+      gpsDependent: false,
+      uncertaintyRad: 5 * Math.PI / 180,
+    },
+    speedThroughWater,
+    speedThroughWaterTimestamp: timestamp,
+    speedThroughWaterEvidence: {
+      value: speedThroughWater,
+      source: "water-log",
+      timestamp,
+      gpsDependent: false,
+    },
+    leeway,
+    leewayTimestamp: timestamp,
+    leewayEvidence: {
+      value: leeway,
+      source: "leeway-model",
+      timestamp,
+      gpsDependent: false,
+    },
+    leewayStatus: "known",
+    ...qualifiedCurrent(currentSetTrue, currentDrift, timestamp),
+  };
+}
+
 test("accepts a first valid GPS fix", () => {
   const state = evaluateNavigationIntegrity({
     timestamp: "2026-06-22T12:00:00.000Z",
@@ -125,20 +185,28 @@ test("propagates dead reckoning using heading, STW, and current", () => {
   const first = evaluateNavigationIntegrity({
     timestamp: "2026-06-22T12:00:00.000Z",
     position: { latitude: 56, longitude: -5 },
-    headingTrue: 0,
-    speedThroughWater: 2,
-    currentSetTrue: Math.PI / 2,
-    currentDrift: 1,
+    ...independentMotion({
+      headingTrue: 0,
+      speedThroughWater: 2,
+      currentSetTrue: Math.PI / 2,
+      currentDrift: 1,
+      timestamp: "2026-06-22T12:00:00.000Z",
+    }),
   });
   const second = evaluateNavigationIntegrity({
     timestamp: "2026-06-22T12:00:10.000Z",
     position: null,
-    headingTrue: 0,
-    speedThroughWater: 2,
-    currentSetTrue: Math.PI / 2,
-    currentDrift: 1,
+    ...independentMotion({
+      headingTrue: 0,
+      speedThroughWater: 2,
+      currentSetTrue: Math.PI / 2,
+      currentDrift: 1,
+      timestamp: "2026-06-22T12:00:10.000Z",
+    }),
     fixValid: false,
   }, first);
+  assert.equal(first.integrityAssurance.status, "full");
+  assert.equal(first.integrityDeadReckoning.gpsDependent, false);
   assert.equal(second.trust, "lost");
   assert.ok(second.deadReckoning.position.latitude > 56);
   assert.ok(second.deadReckoning.position.longitude > -5);
@@ -155,8 +223,7 @@ test("uses the last trusted current vector after GPS is lost", () => {
     speedThroughWater: 0,
     speedOverGround: 0,
     courseOverGroundTrue: 0,
-    currentSetTrue: Math.PI / 2,
-    currentDrift: 1,
+    ...qualifiedCurrent(Math.PI / 2, 1, "2026-06-22T12:00:00.000Z"),
   });
   const lost = evaluateNavigationIntegrity({
     timestamp: "2026-06-22T12:00:10.000Z",
@@ -165,8 +232,10 @@ test("uses the last trusted current vector after GPS is lost", () => {
     speedThroughWater: 0,
     speedOverGround: 0,
     courseOverGroundTrue: 0,
-    currentSetTrue: Math.PI,
-    currentDrift: 5,
+    ...qualifiedCurrent(Math.PI, 5, "2026-06-22T12:00:10.000Z", {
+      gpsDependent: true,
+      origin: "gps-derived-residual",
+    }),
     fixValid: false,
   }, first);
 
@@ -265,8 +334,7 @@ test("uses tide-only dead reckoning when GPS is lost and the boat has no reliabl
     speedThroughWater: 0,
     speedOverGround: 0,
     courseOverGroundTrue: 0,
-    currentSetTrue: Math.PI / 2,
-    currentDrift: 1,
+    ...qualifiedCurrent(Math.PI / 2, 1, "2026-06-22T12:00:00.000Z"),
   });
   const second = evaluateNavigationIntegrity({
     timestamp: "2026-06-22T12:00:10.000Z",
@@ -274,8 +342,7 @@ test("uses tide-only dead reckoning when GPS is lost and the boat has no reliabl
     speedThroughWater: 0,
     speedOverGround: 0,
     courseOverGroundTrue: 0,
-    currentSetTrue: Math.PI / 2,
-    currentDrift: 1,
+    ...qualifiedCurrent(Math.PI / 2, 1, "2026-06-22T12:00:10.000Z"),
     fixValid: false,
   }, first);
 
@@ -291,8 +358,7 @@ test("uses tide-only dead reckoning when STW is present but heading is unavailab
     speedThroughWater: 2,
     speedOverGround: 0,
     courseOverGroundTrue: 0,
-    currentSetTrue: 0,
-    currentDrift: 1,
+    ...qualifiedCurrent(0, 1, "2026-06-22T12:00:00.000Z"),
   });
   const second = evaluateNavigationIntegrity({
     timestamp: "2026-06-22T12:00:10.000Z",
@@ -300,8 +366,7 @@ test("uses tide-only dead reckoning when STW is present but heading is unavailab
     speedThroughWater: 2,
     speedOverGround: 0,
     courseOverGroundTrue: 0,
-    currentSetTrue: 0,
-    currentDrift: 1,
+    ...qualifiedCurrent(0, 1, "2026-06-22T12:00:10.000Z"),
     fixValid: false,
   }, first);
 
@@ -309,7 +374,7 @@ test("uses tide-only dead reckoning when STW is present but heading is unavailab
   assert.ok(second.deadReckoning.position.latitude > 56);
 });
 
-test("does not add tide again when independent DR uses COG/SOG", () => {
+test("integrity DR refuses COG/SOG from the GNSS under test", () => {
   const start = { latitude: 56, longitude: -5 };
   const first = evaluateNavigationIntegrity({
     timestamp: "2026-06-22T12:00:00.000Z",
@@ -340,7 +405,10 @@ test("does not add tide again when independent DR uses COG/SOG", () => {
   });
 
   assert.equal(second.trust, "normal");
-  assert.equal(second.integrityDeadReckoning.source, "cog-sog");
+  assert.equal(second.integrityDeadReckoning.source, "independent-motion-unavailable");
+  assert.equal(second.integrityDeadReckoning.assurance, "unavailable");
+  assert.equal(second.integrityDeadReckoning.comparisonAvailable, false);
+  assert.equal(second.integrityDeadReckoning.gpsDependent, true);
   assert.doesNotMatch(second.reasons.join(" "), /independent dead reckoning/);
 });
 
@@ -367,7 +435,7 @@ test("falls back to course over ground when heading is unavailable", () => {
   assert.equal(second.vectors.courseOverGround.available, true);
 });
 
-test("ignores stale cached heading and falls back to COG/SOG", () => {
+test("ignores stale cached heading without using GNSS COG/SOG for integrity DR", () => {
   const first = evaluateNavigationIntegrity({
     timestamp: "2026-06-22T12:00:00.000Z",
     positionTimestamp: "2026-06-22T12:00:00.000Z",
@@ -400,7 +468,8 @@ test("ignores stale cached heading and falls back to COG/SOG", () => {
   assert.equal(second.trust, "normal");
   assert.equal(second.gps.headingTrue, null);
   assert.equal(second.operationalDeadReckoning.source, "gps-locked");
-  assert.equal(second.integrityDeadReckoning.source, "cog-sog");
+  assert.equal(second.integrityDeadReckoning.source, "independent-motion-unavailable");
+  assert.equal(second.integrityDeadReckoning.comparisonAvailable, false);
   assert.equal(second.vectors.headingThroughWater.available, false);
   assert.equal(second.vectors.courseOverGround.available, true);
 });
@@ -464,12 +533,17 @@ test("treats a stale cached Signal K position as lost GPS", () => {
   assert.equal(stale.counters.drDiscrepancies, 0);
 });
 
-test("fresh GPS rejected by independent DR mismatch stays suspect, not lost", () => {
+test("fresh GPS is not rejected when independent integrity motion is unavailable", () => {
   let state = evaluateNavigationIntegrity({
     timestamp: "2026-06-22T12:00:00.000Z",
     position: { latitude: 56, longitude: -5 },
     speedOverGround: 2.2,
     courseOverGroundTrue: Math.PI / 2,
+    ...independentMotion({
+      headingTrue: Math.PI / 2,
+      speedThroughWater: 2.2,
+      timestamp: "2026-06-22T12:00:00.000Z",
+    }),
   }, null, {
     warningDrDiscrepancyMeters: 20,
     alarmDrDiscrepancyMeters: 40,
@@ -491,10 +565,11 @@ test("fresh GPS rejected by independent DR mismatch stays suspect, not lost", ()
   });
 
   assert.equal(state.gps.fixValid, true);
-  assert.equal(state.trust, "suspect");
-  assert.equal(state.acceptedGps, false);
-  assert.match(state.reasons.join(" "), /GPS differs from independent dead reckoning/);
-  assert.match(state.reasons.join(" "), /Last trusted GPS fix is 25 seconds old/);
+  assert.equal(state.trust, "normal");
+  assert.equal(state.acceptedGps, true);
+  assert.doesNotMatch(state.reasons.join(" "), /GPS differs from independent dead reckoning/);
+  assert.equal(state.integrityAssurance.status, "unavailable");
+  assert.equal(state.integrityAssurance.comparisonAvailable, false);
   assert.equal(state.counters.lostFixes, 0);
 });
 
@@ -517,6 +592,11 @@ test("lost GPS reports time since last received position, not stale trusted base
     positionTimestamp: "2026-06-22T12:06:00.000Z",
     speedOverGround: 2.2,
     courseOverGroundTrue: Math.PI / 2,
+    ...independentMotion({
+      headingTrue: Math.PI / 2,
+      speedThroughWater: 2.2,
+      timestamp: "2026-06-22T12:06:00.000Z",
+    }),
   }, state, {
     warningDrDiscrepancyMeters: 20,
     alarmDrDiscrepancyMeters: 40,
@@ -525,7 +605,7 @@ test("lost GPS reports time since last received position, not stale trusted base
   });
 
   assert.equal(state.trust, "suspect");
-  assert.match(state.reasons.join(" "), /Last trusted GPS fix is 360 seconds old/);
+  assert.equal(state.acceptedGps, false);
 
   state = evaluateNavigationIntegrity({
     timestamp: "2026-06-22T12:06:02.000Z",
@@ -566,12 +646,14 @@ test("counts degraded signal and dead-reckoning discrepancy events", () => {
     position: { latitude: 56, longitude: -5 },
     hdop: 1,
     satellites: 8,
+    ...independentMotion({ timestamp: "2026-06-22T12:00:00.000Z" }),
   });
   const second = evaluateNavigationIntegrity({
     timestamp: "2026-06-22T12:00:10.000Z",
     position: { latitude: 56.0006, longitude: -5 },
     hdop: 6,
     satellites: 3,
+    ...independentMotion({ timestamp: "2026-06-22T12:00:10.000Z" }),
   }, first, { maxBoatSpeedKnots: 30, warningDrDiscrepancyMeters: 20, alarmDrDiscrepancyMeters: 500 });
 
   assert.equal(second.trust, "degraded");
@@ -585,6 +667,7 @@ test("counts degraded signal and dead-reckoning discrepancy events", () => {
     position: { latitude: 56.0012, longitude: -5 },
     hdop: 6,
     satellites: 3,
+    ...independentMotion({ timestamp: "2026-06-22T12:00:20.000Z" }),
   }, second, { maxBoatSpeedKnots: 30, warningDrDiscrepancyMeters: 20, alarmDrDiscrepancyMeters: 500 });
 
   assert.equal(third.trust, "degraded");
@@ -608,6 +691,7 @@ test("keeps operational DR GPS-locked while integrity DR detects slow spoof drif
     position: { latitude: 56, longitude: -5 },
     speedOverGround: 0,
     courseOverGroundTrue: 0,
+    ...independentMotion({ timestamp: "2026-06-22T12:00:00.000Z" }),
   }, null, {
     warningDrDiscrepancyMeters: 20,
     alarmDrDiscrepancyMeters: 500,
@@ -615,11 +699,13 @@ test("keeps operational DR GPS-locked while integrity DR detects slow spoof drif
   });
 
   for (let second = 1; second <= 15; second += 1) {
+    const timestamp = new Date(Date.parse("2026-06-22T12:00:00.000Z") + second * 1000).toISOString();
     state = evaluateNavigationIntegrity({
-      timestamp: new Date(Date.parse("2026-06-22T12:00:00.000Z") + second * 1000).toISOString(),
+      timestamp,
       position: _private.destinationMeters({ latitude: 56, longitude: -5 }, second * 2, 0),
       speedOverGround: 0,
       courseOverGroundTrue: 0,
+      ...independentMotion({ timestamp }),
     }, state, {
       warningDrDiscrepancyMeters: 20,
       alarmDrDiscrepancyMeters: 500,
@@ -727,8 +813,7 @@ test("operational DR drifts on tide when GPS is lost and the boat is stopped", (
     speedThroughWater: 0,
     speedOverGround: 0,
     courseOverGroundTrue: 0,
-    currentSetTrue: Math.PI / 2,
-    currentDrift: 1,
+    ...qualifiedCurrent(Math.PI / 2, 1, "2026-06-22T12:00:00.000Z"),
   });
   const lost = evaluateNavigationIntegrity({
     timestamp: "2026-06-22T12:00:10.000Z",
@@ -737,8 +822,7 @@ test("operational DR drifts on tide when GPS is lost and the boat is stopped", (
     speedThroughWater: 0,
     speedOverGround: 0,
     courseOverGroundTrue: 0,
-    currentSetTrue: Math.PI / 2,
-    currentDrift: 1,
+    ...qualifiedCurrent(Math.PI / 2, 1, "2026-06-22T12:00:10.000Z"),
     fixValid: false,
   }, first);
 
@@ -755,23 +839,25 @@ test("healthy stationary GPS does not diverge from independent DR on tide alone"
   let state = evaluateNavigationIntegrity({
     timestamp: "2026-06-22T12:00:00.000Z",
     position: start,
-    headingTrue: 0,
-    speedThroughWater: 0,
     speedOverGround: 0,
     courseOverGroundTrue: 0,
-    currentSetTrue: Math.PI / 2,
-    currentDrift: 2,
+    ...independentMotion({
+      currentSetTrue: Math.PI / 2,
+      currentDrift: 2,
+      timestamp: "2026-06-22T12:00:00.000Z",
+    }),
   });
 
   state = evaluateNavigationIntegrity({
     timestamp: "2026-06-22T12:02:00.000Z",
     position: start,
-    headingTrue: 0,
-    speedThroughWater: 0,
     speedOverGround: 0,
     courseOverGroundTrue: 0,
-    currentSetTrue: Math.PI / 2,
-    currentDrift: 2,
+    ...independentMotion({
+      currentSetTrue: Math.PI / 2,
+      currentDrift: 2,
+      timestamp: "2026-06-22T12:02:00.000Z",
+    }),
   }, state);
 
   assert.equal(state.trust, "normal");
@@ -786,12 +872,13 @@ test("healthy stationary GPS realigns stale independent DR after tide-only drift
   let state = evaluateNavigationIntegrity({
     timestamp: "2026-06-22T12:00:00.000Z",
     position: start,
-    headingTrue: 0,
-    speedThroughWater: 0,
     speedOverGround: 0,
     courseOverGroundTrue: 0,
-    currentSetTrue: Math.PI / 2,
-    currentDrift: 2,
+    ...independentMotion({
+      currentSetTrue: Math.PI / 2,
+      currentDrift: 2,
+      timestamp: "2026-06-22T12:00:00.000Z",
+    }),
   });
   state = {
     ...state,
@@ -805,12 +892,13 @@ test("healthy stationary GPS realigns stale independent DR after tide-only drift
   state = evaluateNavigationIntegrity({
     timestamp: "2026-06-22T12:02:00.000Z",
     position: start,
-    headingTrue: 0,
-    speedThroughWater: 0,
     speedOverGround: 0,
     courseOverGroundTrue: 0,
-    currentSetTrue: Math.PI / 2,
-    currentDrift: 2,
+    ...independentMotion({
+      currentSetTrue: Math.PI / 2,
+      currentDrift: 2,
+      timestamp: "2026-06-22T12:02:00.000Z",
+    }),
   }, state);
 
   assert.equal(state.trust, "normal");
@@ -824,8 +912,8 @@ test("publishes single-arrow vector only when heading is available", () => {
   const state = evaluateNavigationIntegrity({
     timestamp: "2026-06-22T12:00:00.000Z",
     position: { latitude: 56, longitude: -5 },
-    speedOverGround: 4,
     headingTrue: Math.PI,
+    speedThroughWater: 4,
     courseOverGroundTrue: Math.PI / 2,
   });
 
@@ -839,20 +927,26 @@ test("lost GPS double-arrow vector follows operational DR over ground", () => {
   const first = evaluateNavigationIntegrity({
     timestamp: "2026-06-22T12:00:00.000Z",
     position: { latitude: 56, longitude: -5 },
-    headingTrue: 0,
-    speedThroughWater: 2,
-    currentSetTrue: Math.PI / 2,
-    currentDrift: 1,
+    ...independentMotion({
+      headingTrue: 0,
+      speedThroughWater: 2,
+      currentSetTrue: Math.PI / 2,
+      currentDrift: 1,
+      timestamp: "2026-06-22T12:00:00.000Z",
+    }),
   });
   const lost = evaluateNavigationIntegrity({
     timestamp: "2026-06-22T12:00:10.000Z",
     position: null,
-    headingTrue: 0,
-    speedThroughWater: 2,
     speedOverGround: 4,
     courseOverGroundTrue: Math.PI,
-    currentSetTrue: Math.PI / 2,
-    currentDrift: 1,
+    ...independentMotion({
+      headingTrue: 0,
+      speedThroughWater: 2,
+      currentSetTrue: Math.PI / 2,
+      currentDrift: 1,
+      timestamp: "2026-06-22T12:00:10.000Z",
+    }),
     fixValid: false,
   }, first);
 
@@ -896,14 +990,217 @@ test("publishes tide/current as the triple-arrow vector", () => {
   const state = evaluateNavigationIntegrity({
     timestamp: "2026-06-22T12:00:00.000Z",
     position: { latitude: 56, longitude: -5 },
-    currentSetTrue: Math.PI / 2,
-    currentDrift: 1.5,
+    ...qualifiedCurrent(Math.PI / 2, 1.5, "2026-06-22T12:00:00.000Z"),
   });
 
   assert.equal(state.vectors.tide.available, true);
   assert.equal(state.vectors.tide.arrow, "triple");
   assert.equal(state.vectors.tide.speedMps, 1.5);
   assert.equal(state.vectors.tide.bearingTrueDegrees, 90);
+});
+
+test("never treats magnetic heading as true heading", () => {
+  const state = evaluateNavigationIntegrity({
+    timestamp: "2026-07-14T12:00:00.000Z",
+    position: { latitude: 56, longitude: -5 },
+    headingMagnetic: Math.PI / 2,
+    speedThroughWater: 2,
+  });
+
+  assert.equal(state.gps.headingTrue, null);
+  assert.equal(state.vectors.headingThroughWater.available, false);
+  assert.equal(state.integrityAssurance.status, "unavailable");
+  assert.match(state.integrityAssurance.reason, /independent true heading/);
+});
+
+test("rejects current without atomic provenance metadata", () => {
+  const state = evaluateNavigationIntegrity({
+    timestamp: "2026-07-14T12:00:00.000Z",
+    position: { latitude: 56, longitude: -5 },
+    currentSetTrue: Math.PI / 2,
+    currentDrift: 1,
+    currentEvidence: {
+      setTrue: Math.PI / 2,
+      drift: 1,
+      source: "set-source-only",
+      timestamp: "2026-07-14T12:00:00.000Z",
+      gpsDependent: false,
+    },
+  });
+
+  assert.equal(state.current.available, false);
+  assert.equal(state.lastTrustedCurrent, null);
+  assert.equal(state.vectors.tide.available, false);
+});
+
+test("rejects stale qualified current", () => {
+  const state = evaluateNavigationIntegrity({
+    timestamp: "2026-07-14T12:01:00.000Z",
+    position: { latitude: 56, longitude: -5 },
+    ...qualifiedCurrent(Math.PI / 2, 1, "2026-07-14T12:00:00.000Z"),
+  }, null, {
+    currentMaxAgeSeconds: 30,
+  });
+
+  assert.equal(state.current.available, false);
+  assert.equal(state.lastTrustedCurrent, null);
+});
+
+test("reports reduced assurance and unknown leeway without independent current", () => {
+  const timestamp = "2026-07-14T12:00:00.000Z";
+  const evidence = independentMotion({
+    headingTrue: 0,
+    speedThroughWater: 2,
+    timestamp,
+  });
+  delete evidence.currentEvidence;
+  delete evidence.currentSetTrue;
+  delete evidence.currentDrift;
+  delete evidence.currentTimestamp;
+  delete evidence.leewayEvidence;
+  delete evidence.leeway;
+  evidence.leewayStatus = "unknown";
+
+  const state = evaluateNavigationIntegrity({
+    timestamp,
+    position: { latitude: 56, longitude: -5 },
+    ...evidence,
+  });
+
+  assert.equal(state.integrityAssurance.status, "reduced");
+  assert.equal(state.integrityAssurance.comparisonAvailable, false);
+  assert.equal(state.integrityAssurance.gpsDependent, true);
+  assert.equal(state.integrityDeadReckoning.gpsDependent, true);
+  assert.equal(state.integrityDeadReckoning.leewayStatus, "unknown");
+  assert.match(state.integrityDeadReckoning.unavailableReason, /independent current, leeway/);
+  assert.ok(state.integrityDeadReckoning.uncertaintyRadiusMeters >= 10);
+});
+
+test("applies known leeway once to the through-water track", () => {
+  const firstTimestamp = "2026-07-14T12:00:00.000Z";
+  const secondTimestamp = "2026-07-14T12:00:10.000Z";
+  const first = evaluateNavigationIntegrity({
+    timestamp: firstTimestamp,
+    position: { latitude: 56, longitude: -5 },
+    ...independentMotion({
+      headingTrue: 0,
+      speedThroughWater: 1,
+      leeway: Math.PI / 2,
+      timestamp: firstTimestamp,
+    }),
+  });
+  const lost = evaluateNavigationIntegrity({
+    timestamp: secondTimestamp,
+    position: null,
+    fixValid: false,
+    ...independentMotion({
+      headingTrue: 0,
+      speedThroughWater: 1,
+      leeway: Math.PI / 2,
+      timestamp: secondTimestamp,
+    }),
+  }, first);
+
+  assert.ok(lost.operationalDeadReckoning.position.longitude > -5);
+  assert.ok(Math.abs(lost.operationalDeadReckoning.position.latitude - 56) < 0.00002);
+  assert.equal(lost.operationalDeadReckoning.gpsDependent, false);
+});
+
+test("GPS-derived current is operational evidence but never integrity evidence", () => {
+  const timestamp = "2026-07-14T12:00:00.000Z";
+  const state = evaluateNavigationIntegrity({
+    timestamp,
+    position: { latitude: 56, longitude: -5 },
+    headingTrue: 0,
+    speedThroughWater: 2,
+    headingTrueEvidence: {
+      value: 0,
+      source: "compass",
+      timestamp,
+      gpsDependent: false,
+    },
+    speedThroughWaterEvidence: {
+      value: 2,
+      source: "water-log",
+      timestamp,
+      gpsDependent: false,
+    },
+    leeway: 0,
+    leewayTimestamp: timestamp,
+    leewayEvidence: {
+      value: 0,
+      source: "leeway-model",
+      timestamp,
+      gpsDependent: false,
+    },
+    leewayStatus: "known",
+    ...qualifiedCurrent(Math.PI / 2, 1, timestamp, {
+      gpsDependent: true,
+      origin: "ground-minus-water-residual",
+    }),
+  });
+
+  assert.equal(state.current.available, true);
+  assert.equal(state.current.gpsDependent, true);
+  assert.equal(state.integrityAssurance.status, "reduced");
+  assert.equal(state.integrityAssurance.comparisonAvailable, false);
+  assert.equal(state.integrityDeadReckoning.currentOrigin, null);
+});
+
+test("retains a GPS-derived residual through an outage for operational DR only", () => {
+  const firstTimestamp = "2026-07-14T12:00:00.000Z";
+  const secondTimestamp = "2026-07-14T12:00:10.000Z";
+  const first = evaluateNavigationIntegrity({
+    timestamp: firstTimestamp,
+    position: { latitude: 56, longitude: -5 },
+    ...independentMotion({
+      headingTrue: 0,
+      speedThroughWater: 1,
+      leeway: 0,
+      currentSetTrue: Math.PI / 2,
+      currentDrift: 1,
+      timestamp: firstTimestamp,
+    }),
+    ...qualifiedCurrent(Math.PI / 2, 1, firstTimestamp, {
+      source: "gps.one+water-log.one+compass.one",
+      gpsDependent: true,
+      origin: "ground-minus-water-residual",
+    }),
+  });
+  const lost = evaluateNavigationIntegrity({
+    timestamp: secondTimestamp,
+    position: null,
+    fixValid: false,
+    ...independentMotion({
+      headingTrue: 0,
+      speedThroughWater: 1,
+      leeway: 0,
+      currentDrift: 0,
+      timestamp: secondTimestamp,
+    }),
+    currentSetTrue: undefined,
+    currentDrift: undefined,
+    currentTimestamp: null,
+    currentEvidence: null,
+  }, first);
+
+  assert.ok(lost.operationalDeadReckoning.position.latitude > 56);
+  assert.ok(lost.operationalDeadReckoning.position.longitude > -5);
+  assert.equal(lost.operationalDeadReckoning.source, "heading-stw-current");
+  assert.equal(
+    lost.operationalDeadReckoning.currentOrigin,
+    "ground-minus-water-residual",
+  );
+  assert.equal(lost.operationalDeadReckoning.gpsDependent, true);
+  assert.equal(
+    lost.operationalDeadReckoning.provenance.current.gpsDependent,
+    true,
+  );
+  assert.equal(lost.current.source, "last-trusted-current");
+  assert.equal(lost.integrityAssurance.status, "reduced");
+  assert.equal(lost.integrityAssurance.comparisonAvailable, false);
+  assert.equal(lost.integrityDeadReckoning.currentOrigin, null);
+  assert.equal(lost.integrityDeadReckoning.provenance.current, null);
 });
 
 test("distance and destination helpers are metre scale", () => {

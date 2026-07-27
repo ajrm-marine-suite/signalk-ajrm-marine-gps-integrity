@@ -5,6 +5,7 @@ const { evaluateNavigationIntegrity } = require("./lib/navigation-integrity");
 
 const PLUGIN_ID = "signalk-ajrm-marine-gps-integrity";
 const LOGGER_PLAYBACK_PATH = "plugins.ajrmMarineLogger.playback";
+const NAVIGATION_REFERENCE_PATH = "plugins.ajrmMarineNavigationReference.state";
 const STATE_PATH = "plugins.ajrmMarineGpsIntegrity.navigationIntegrity";
 const NOTIFICATION_PATH = "notifications.navigation.gnss.integrity";
 const TRUSTED_PREFIX = "plugins.ajrmMarineGpsIntegrity.trusted";
@@ -33,12 +34,21 @@ const PROJECTION_PATHS = [
   `${DEAD_RECKONING_PREFIX}.operational.source`,
   `${DEAD_RECKONING_PREFIX}.operational.ageSeconds`,
   `${DEAD_RECKONING_PREFIX}.operational.lastRealignedAt`,
+  `${DEAD_RECKONING_PREFIX}.operational.gpsDependent`,
+  `${DEAD_RECKONING_PREFIX}.operational.leewayStatus`,
+  `${DEAD_RECKONING_PREFIX}.operational.currentOrigin`,
   `${DEAD_RECKONING_PREFIX}.integrity.position`,
   `${DEAD_RECKONING_PREFIX}.integrity.uncertaintyRadiusMeters`,
   `${DEAD_RECKONING_PREFIX}.integrity.source`,
   `${DEAD_RECKONING_PREFIX}.integrity.ageSeconds`,
   `${DEAD_RECKONING_PREFIX}.integrity.lastRealignedAt`,
   `${DEAD_RECKONING_PREFIX}.integrity.realignIntervalSeconds`,
+  `${DEAD_RECKONING_PREFIX}.integrity.assurance`,
+  `${DEAD_RECKONING_PREFIX}.integrity.comparisonAvailable`,
+  `${DEAD_RECKONING_PREFIX}.integrity.unavailableReason`,
+  `${DEAD_RECKONING_PREFIX}.integrity.gpsDependent`,
+  `${DEAD_RECKONING_PREFIX}.integrity.leewayStatus`,
+  `${DEAD_RECKONING_PREFIX}.integrity.currentOrigin`,
   `${COUNTERS_PREFIX}.evaluations`,
   `${COUNTERS_PREFIX}.acceptedFixes`,
   `${COUNTERS_PREFIX}.rejectedFixes`,
@@ -311,6 +321,25 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
         ...deadReckoning,
         source: "manual-fix",
         realignIntervalSeconds: options.integrityDrRealignSeconds,
+        assurance: "unavailable",
+        comparisonAvailable: false,
+        unavailableReason: "Manual fix establishes a position baseline but not independent motion evidence.",
+        gpsDependent: false,
+        leewayStatus: sample.leewayStatus || "unknown",
+      },
+      integrityAssurance: {
+        status: "unavailable",
+        comparisonAvailable: false,
+        reason: "Manual fix establishes a position baseline but not independent motion evidence.",
+        leewayStatus: sample.leewayStatus || "unknown",
+      },
+      navigationProvenance: {
+        gnss: sample.gnssProvenance || null,
+        headingTrue: sample.headingTrueEvidence || null,
+        speedThroughWater: sample.speedThroughWaterEvidence || null,
+        current: sample.currentEvidence || null,
+        leewayStatus: sample.leewayStatus || "unknown",
+        navigationReference: sample.navigationReference || null,
       },
       vectors: buildManualFixVectors(motionSample),
     };
@@ -437,6 +466,9 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
       { path: `${DEAD_RECKONING_PREFIX}.operational.source`, value: operational.source || null },
       { path: `${DEAD_RECKONING_PREFIX}.operational.ageSeconds`, value: operational.ageSeconds ?? null },
       { path: `${DEAD_RECKONING_PREFIX}.operational.lastRealignedAt`, value: operational.lastRealignedAt || null },
+      { path: `${DEAD_RECKONING_PREFIX}.operational.gpsDependent`, value: operational.gpsDependent ?? null },
+      { path: `${DEAD_RECKONING_PREFIX}.operational.leewayStatus`, value: operational.leewayStatus || "unknown" },
+      { path: `${DEAD_RECKONING_PREFIX}.operational.currentOrigin`, value: operational.currentOrigin || null },
       { path: `${DEAD_RECKONING_PREFIX}.integrity.position`, value: integrity.position || null },
       {
         path: `${DEAD_RECKONING_PREFIX}.integrity.uncertaintyRadiusMeters`,
@@ -449,6 +481,18 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
         path: `${DEAD_RECKONING_PREFIX}.integrity.realignIntervalSeconds`,
         value: integrity.realignIntervalSeconds ?? null,
       },
+      { path: `${DEAD_RECKONING_PREFIX}.integrity.assurance`, value: integrity.assurance || "unavailable" },
+      {
+        path: `${DEAD_RECKONING_PREFIX}.integrity.comparisonAvailable`,
+        value: integrity.comparisonAvailable === true,
+      },
+      {
+        path: `${DEAD_RECKONING_PREFIX}.integrity.unavailableReason`,
+        value: integrity.unavailableReason || null,
+      },
+      { path: `${DEAD_RECKONING_PREFIX}.integrity.gpsDependent`, value: integrity.gpsDependent ?? null },
+      { path: `${DEAD_RECKONING_PREFIX}.integrity.leewayStatus`, value: integrity.leewayStatus || "unknown" },
+      { path: `${DEAD_RECKONING_PREFIX}.integrity.currentOrigin`, value: integrity.currentOrigin || null },
       { path: `${COUNTERS_PREFIX}.evaluations`, value: counters.evaluations ?? 0 },
       { path: `${COUNTERS_PREFIX}.acceptedFixes`, value: counters.acceptedFixes ?? 0 },
       { path: `${COUNTERS_PREFIX}.rejectedFixes`, value: counters.rejectedFixes ?? 0 },
@@ -567,87 +611,219 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
 };
 
 function sampleFromSignalK(app) {
-  const entries = {
+  const navigationReference = validNavigationReference(
+    getSelfPath(app, NAVIGATION_REFERENCE_PATH),
+  );
+  const gnssEntries = {
     position: getSelfEntry(app, "navigation.position"),
     speedOverGround: getSelfEntry(app, "navigation.speedOverGround"),
     courseOverGroundTrue: getSelfEntry(app, "navigation.courseOverGroundTrue"),
-    headingTrue: getSelfEntry(app, "navigation.headingTrue"),
-    headingMagnetic: getSelfEntry(app, "navigation.headingMagnetic"),
-    speedThroughWater: getSelfEntry(app, "navigation.speedThroughWater"),
   };
-  const currentSetEntry = firstEntry(app, [
-    "environment.current.setTrue",
-    "environment.tide.setTrue",
-    "environment.water.current.setTrue",
-  ]);
-  const currentDriftEntry = firstEntry(app, [
-    "environment.current.drift",
-    "environment.tide.drift",
-    "environment.water.current.drift",
-  ]);
-  const currentSetValue = freshestFiniteEntryValue(currentSetEntry);
-  const currentDriftValue = freshestFiniteEntryValue(currentDriftEntry);
-  const source = chooseNavigationSource(entries);
-  const position = readEntryValue(entries.position, source);
-  const positionTimestampMs = sourceTimestamp(entries.position, source);
-  const speedOverGroundTimestampMs = sourceTimestamp(entries.speedOverGround, source);
-  const courseOverGroundTrueTimestampMs = sourceTimestamp(entries.courseOverGroundTrue, source);
-  const headingTrueTimestampMs = sourceTimestamp(entries.headingTrue, source);
-  const headingMagneticTimestampMs = sourceTimestamp(entries.headingMagnetic, source);
-  const speedThroughWaterTimestampMs = sourceTimestamp(entries.speedThroughWater, source);
-  const currentSetTimestampMs = currentSetValue.timestampMs;
-  const currentDriftTimestampMs = currentDriftValue.timestampMs;
-  const methodQualityEntry = firstEntry(app, [
-    "navigation.gnss.methodQuality",
-    "navigation.gps.methodQuality",
-    "navigation.gnss.type",
-  ]);
-  const methodQualitySource = defaultEntrySource(methodQualityEntry);
-  const methodQualityTimestampMs = sourceTimestamp(methodQualityEntry, methodQualitySource);
-  const satellitesEntry = firstEntry(app, [
-    "navigation.gnss.satellites",
-    "navigation.gnss.satellitesInView",
-    "navigation.gps.satellites",
-  ]);
-  const satellitesSource = defaultEntrySource(satellitesEntry);
-  const satellitesTimestampMs = sourceTimestamp(satellitesEntry, satellitesSource);
-  const methodQuality = readEntryValue(methodQualityEntry, methodQualitySource);
-  const satellites = readEntryValue(satellitesEntry, satellitesSource);
+  const candidateReferencePosition = referenceMeasurement(navigationReference?.position);
+  const candidateReferenceCourse = referenceMeasurement(
+    navigationReference?.groundTrack?.courseTrue,
+  );
+  const candidateReferenceSpeed = referenceMeasurement(
+    navigationReference?.groundTrack?.speedOverGround,
+  );
+  const providerAvailable = Boolean(navigationReference);
+  const referenceGnssCoherent = Boolean(
+    navigationReference?.groundTrack?.coherent === true &&
+      navigationReference?.groundTrack?.gpsDependent === true &&
+      candidateReferencePosition &&
+      candidateReferenceCourse &&
+      candidateReferenceSpeed &&
+      candidateReferencePosition.gpsDependent === true &&
+      candidateReferenceCourse.gpsDependent === true &&
+      candidateReferenceSpeed.gpsDependent === true &&
+      candidateReferencePosition.source &&
+      candidateReferencePosition.source === candidateReferenceCourse.source &&
+      candidateReferencePosition.source === candidateReferenceSpeed.source &&
+      candidateReferencePosition.source === navigationReference.groundTrack.source,
+  );
+  const malformedReferenceGroundTrack = Boolean(
+    providerAvailable &&
+      navigationReference?.groundTrack &&
+      !referenceGnssCoherent,
+  );
+  const referencePosition = malformedReferenceGroundTrack
+    ? null
+    : candidateReferencePosition;
+  const referenceCourse = referenceGnssCoherent
+    ? candidateReferenceCourse
+    : null;
+  const referenceSpeed = referenceGnssCoherent
+    ? candidateReferenceSpeed
+    : null;
+  const source = providerAvailable
+    ? referencePosition?.source ||
+      referenceCourse?.source ||
+      referenceSpeed?.source ||
+      null
+    : chooseNavigationSource(gnssEntries);
+  const position = providerAvailable
+    ? referencePosition?.value
+    : readEntryValue(gnssEntries.position, source);
+  const speedOverGround = providerAvailable
+    ? referenceSpeed?.value
+    : readEntryValue(gnssEntries.speedOverGround, source);
+  const courseOverGroundTrue = providerAvailable
+    ? referenceCourse?.value
+    : readEntryValue(gnssEntries.courseOverGroundTrue, source);
+  const positionTimestampMs = providerAvailable
+    ? timestampNumber(referencePosition?.timestamp)
+    : sourceTimestamp(gnssEntries.position, source);
+  const speedOverGroundTimestampMs = providerAvailable
+    ? timestampNumber(referenceSpeed?.timestamp)
+    : sourceTimestamp(gnssEntries.speedOverGround, source);
+  const courseOverGroundTrueTimestampMs = providerAvailable
+    ? timestampNumber(referenceCourse?.timestamp)
+    : sourceTimestamp(gnssEntries.courseOverGroundTrue, source);
+  const methodQualityEntry = source || !providerAvailable
+    ? firstEntryForSource(app, [
+        "navigation.gnss.methodQuality",
+        "navigation.gps.methodQuality",
+        "navigation.gnss.type",
+      ], source)
+    : undefined;
+  const satellitesEntry = source || !providerAvailable
+    ? firstEntryForSource(app, [
+        "navigation.gnss.satellites",
+        "navigation.gnss.satellitesInView",
+        "navigation.gps.satellites",
+      ], source)
+    : undefined;
+  const hdopEntry = source || !providerAvailable
+    ? firstEntryForSource(app, [
+        "navigation.gnss.horizontalDilution",
+        "navigation.gnss.hdop",
+        "navigation.gps.horizontalDilution",
+      ], source)
+    : undefined;
+  const methodQualityTimestampMs = sourceTimestamp(methodQualityEntry, source);
+  const satellitesTimestampMs = sourceTimestamp(satellitesEntry, source);
+  const hdopTimestampMs = sourceTimestamp(hdopEntry, source);
+  const methodQuality = readEntryValue(methodQualityEntry, source);
+  const satellites = readEntryValue(satellitesEntry, source);
+  const hdop = readEntryValue(hdopEntry, source);
   const explicitGpsUnavailable = explicitNoGps(methodQuality, satellites);
+  const headingEntry = getSelfEntry(app, "navigation.headingTrue");
+  const speedThroughWaterEntry = getSelfEntry(app, "navigation.speedThroughWater");
+  const rawHeadingSource = defaultEntrySource(headingEntry);
+  const rawSpeedThroughWaterSource = defaultEntrySource(speedThroughWaterEntry);
+  const headingMeasurement = providerAvailable
+    ? referenceMeasurement(navigationReference?.bowHeadingTrue) ||
+      referenceMeasurement(navigationReference?.throughWater?.headingTrue)
+    : rawMeasurement(headingEntry, rawHeadingSource, "raw-signalk-heading-true");
+  const speedThroughWaterMeasurement = providerAvailable
+    ? referenceMeasurement(navigationReference?.throughWater?.speedThroughWater)
+    : rawMeasurement(
+        speedThroughWaterEntry,
+        rawSpeedThroughWaterSource,
+        "raw-signalk-speed-through-water",
+      );
+  const trackThroughWaterMeasurement = referenceMeasurement(
+    navigationReference?.throughWater?.trackTrue,
+  );
+  const leewayMeasurement = referenceMeasurement(navigationReference?.throughWater?.leeway);
+  const independentCurrentEvidence = referenceIndependentCurrent(
+    navigationReference?.current,
+  );
+  const residualCurrentEvidence = referenceResidualCurrent(
+    navigationReference?.residual,
+  );
+  const currentEvidence =
+    independentCurrentEvidence || residualCurrentEvidence;
+  const clockReferenceMeasurement = referenceMeasurement(
+    navigationReference?.clockReference,
+  );
   return {
     timestamp: new Date().toISOString(),
     source,
     position,
     positionTimestamp: positionTimestampMs ? new Date(positionTimestampMs).toISOString() : null,
-    speedOverGround: readEntryValue(entries.speedOverGround, source),
+    speedOverGround,
     speedOverGroundTimestamp: speedOverGroundTimestampMs ? new Date(speedOverGroundTimestampMs).toISOString() : null,
-    courseOverGroundTrue: readEntryValue(entries.courseOverGroundTrue, source),
+    courseOverGroundTrue,
     courseOverGroundTrueTimestamp: courseOverGroundTrueTimestampMs
       ? new Date(courseOverGroundTrueTimestampMs).toISOString()
       : null,
-    headingTrue: readEntryValue(entries.headingTrue, source),
-    headingTrueTimestamp: headingTrueTimestampMs ? new Date(headingTrueTimestampMs).toISOString() : null,
-    headingMagnetic: readEntryValue(entries.headingMagnetic, source),
-    headingMagneticTimestamp: headingMagneticTimestampMs ? new Date(headingMagneticTimestampMs).toISOString() : null,
-    speedThroughWater: readEntryValue(entries.speedThroughWater, source),
-    speedThroughWaterTimestamp: speedThroughWaterTimestampMs
-      ? new Date(speedThroughWaterTimestampMs).toISOString()
-      : null,
-    currentSetTrue: currentSetValue.value,
-    currentSetTrueTimestamp: currentSetTimestampMs ? new Date(currentSetTimestampMs).toISOString() : null,
-    currentDrift: currentDriftValue.value,
-    currentDriftTimestamp: currentDriftTimestampMs ? new Date(currentDriftTimestampMs).toISOString() : null,
-    hdop: firstPath(app, [
-      "navigation.gnss.horizontalDilution",
-      "navigation.gnss.hdop",
-      "navigation.gps.horizontalDilution",
-    ]),
+    headingTrue: headingMeasurement?.value,
+    headingTrueTimestamp: headingMeasurement?.timestamp || null,
+    headingTrueEvidence: headingMeasurement,
+    speedThroughWater: speedThroughWaterMeasurement?.value,
+    speedThroughWaterTimestamp: speedThroughWaterMeasurement?.timestamp || null,
+    speedThroughWaterEvidence: speedThroughWaterMeasurement,
+    trackThroughWaterTrue: trackThroughWaterMeasurement?.value,
+    trackThroughWaterTrueTimestamp: trackThroughWaterMeasurement?.timestamp || null,
+    trackThroughWaterTrueEvidence: trackThroughWaterMeasurement,
+    leeway: leewayMeasurement?.value,
+    leewayTimestamp: leewayMeasurement?.timestamp || null,
+    leewayEvidence: leewayMeasurement,
+    leewayStatus: navigationReference?.throughWater?.leewayStatus === "known" ? "known" : "unknown",
+    currentSetTrue: currentEvidence?.setTrue,
+    currentDrift: currentEvidence?.drift,
+    currentTimestamp: currentEvidence?.timestamp || null,
+    currentEvidence,
+    hdop,
+    hdopTimestamp: hdopTimestampMs ? new Date(hdopTimestampMs).toISOString() : null,
     methodQuality,
     methodQualityTimestamp: methodQualityTimestampMs ? new Date(methodQualityTimestampMs).toISOString() : null,
     satellites,
     satellitesTimestamp: satellitesTimestampMs ? new Date(satellitesTimestampMs).toISOString() : null,
     explicitGpsUnavailable,
+    explicitGpsUnavailableTimestamp: Math.max(
+      methodQualityTimestampMs || 0,
+      satellitesTimestampMs || 0,
+    )
+      ? new Date(Math.max(methodQualityTimestampMs || 0, satellitesTimestampMs || 0)).toISOString()
+      : null,
     fixValid: position != null && !explicitGpsUnavailable,
+    gnssProvenance: {
+      coherent: providerAvailable
+        ? referenceGnssCoherent
+        : Boolean(
+            isPosition(position) &&
+              Number.isFinite(finiteNumber(speedOverGround)) &&
+              Number.isFinite(finiteNumber(courseOverGroundTrue)),
+          ),
+      source: source || null,
+      method: providerAvailable ? "navigation-reference" : "raw-source-coherent",
+      position: providerAvailable
+        ? referencePosition
+        : entryEvidence(gnssEntries.position, source),
+      speedOverGround: providerAvailable
+        ? referenceSpeed
+        : entryEvidence(gnssEntries.speedOverGround, source),
+      courseOverGroundTrue: providerAvailable
+        ? referenceCourse
+        : entryEvidence(gnssEntries.courseOverGroundTrue, source),
+      methodQuality: entryEvidence(methodQualityEntry, source),
+      satellites: entryEvidence(satellitesEntry, source),
+      hdop: entryEvidence(hdopEntry, source),
+    },
+    navigationReference: navigationReference
+      ? {
+          contract: navigationReference.contract,
+          schemaVersion: navigationReference.schemaVersion,
+          updatedAt: navigationReference.updatedAt || null,
+          status: navigationReference.status || null,
+          clockReference: clockReferenceMeasurement
+            ? {
+                ...clockReferenceMeasurement,
+                kind: ["heading", "track-proxy"].includes(
+                  navigationReference.clockReference?.kind,
+                )
+                  ? navigationReference.clockReference.kind
+                  : null,
+              }
+            : null,
+          magneticVariation: referenceMeasurement(
+            navigationReference.magneticVariation,
+          ),
+          residual: navigationReference.residual || null,
+        }
+      : null,
   };
 }
 
@@ -675,6 +851,11 @@ function unwrapSignalKValue(entry) {
 function readEntryValue(entry, source) {
   if (source && entry?.values?.[source] && Object.hasOwn(entry.values[source], "value")) {
     return entry.values[source].value;
+  }
+  if (source) {
+    return source === entry?.$source && Object.hasOwn(entry || {}, "value")
+      ? entry.value
+      : undefined;
   }
   return unwrapSignalKValue(entry);
 }
@@ -719,8 +900,9 @@ function hasSourceValue(entry, source) {
 }
 
 function sourceTimestamp(entry, source) {
-  const timestamp = source && entry?.values?.[source]?.timestamp
-    ? entry.values[source].timestamp
+  const timestamp = source
+    ? entry?.values?.[source]?.timestamp ||
+      (source === entry?.$source ? entry?.timestamp : null)
     : entry?.timestamp;
   const ms = timestamp ? Date.parse(timestamp) : NaN;
   return Number.isFinite(ms) ? ms : 0;
@@ -730,34 +912,157 @@ function defaultEntrySource(entry) {
   return entry?.$source || Object.keys(entry?.values || {})[0] || "";
 }
 
-function freshestFiniteEntryValue(entry) {
-  const candidates = [];
-  if (entry && typeof entry === "object" && Object.hasOwn(entry, "value")) {
-    candidates.push({
-      value: entry.value,
-      timestampMs: sourceTimestamp(entry, ""),
-      source: entry.$source || "",
-    });
-  }
-  for (const [source, sourceEntry] of Object.entries(entry?.values || {})) {
-    if (sourceEntry && typeof sourceEntry === "object" && Object.hasOwn(sourceEntry, "value")) {
-      const timestampMs = Date.parse(sourceEntry.timestamp || "");
-      candidates.push({
-        value: sourceEntry.value,
-        timestampMs: Number.isFinite(timestampMs) ? timestampMs : 0,
-        source,
-      });
-    }
-  }
-  const finiteCandidates = candidates
-    .filter((candidate) => Number.isFinite(finiteNumber(candidate.value)))
-    .sort((left, right) => right.timestampMs - left.timestampMs);
-  const selected = finiteCandidates[0];
+function validNavigationReference(value) {
+  if (!value || typeof value !== "object") return null;
+  if (value.contract !== "ajrm-marine-navigation-reference") return null;
+  if (Number(value.schemaVersion) !== 1) return null;
+  return value;
+}
+
+function referenceMeasurement(value) {
+  if (!value || typeof value !== "object" || !Object.hasOwn(value, "value")) return null;
   return {
-    value: selected ? selected.value : undefined,
-    timestampMs: selected ? selected.timestampMs : 0,
-    source: selected ? selected.source : "",
+    value: value.value,
+    source: stringOrNull(value.source),
+    sourceKind: stringOrNull(value.sourceKind),
+    timestamp: isoTimestamp(value.timestamp || value.originalTimestamp),
+    originalTimestamp: isoTimestamp(value.originalTimestamp),
+    ageMs: finiteOrNull(value.ageMs),
+    method: stringOrNull(value.method),
+    uncertaintyRad: finiteOrNull(value.uncertaintyRad),
+    uncertaintyMeters: finiteOrNull(value.uncertaintyMeters),
+    gpsDependent: typeof value.gpsDependent === "boolean" ? value.gpsDependent : null,
   };
+}
+
+function rawMeasurement(entry, source, method) {
+  const value = readEntryValue(entry, source);
+  if (!Number.isFinite(finiteNumber(value))) return null;
+  const timestamp = sourceTimestamp(entry, source);
+  return {
+    value,
+    source: source || entry?.$source || null,
+    sourceKind: "raw-signalk",
+    timestamp: timestamp ? new Date(timestamp).toISOString() : null,
+    originalTimestamp: null,
+    ageMs: null,
+    method,
+    uncertaintyRad: null,
+    uncertaintyMeters: null,
+    gpsDependent: null,
+  };
+}
+
+function referenceCurrent(value) {
+  if (!value || typeof value !== "object") return null;
+  const setMeasurement = referenceMeasurement(value.setTrue);
+  const driftMeasurement = referenceMeasurement(value.drift);
+  const setTrue = finiteNumber(setMeasurement?.value ?? value.setTrue);
+  const drift = finiteNumber(driftMeasurement?.value ?? value.drift);
+  const source = stringOrNull(value.source || setMeasurement?.source || driftMeasurement?.source);
+  const childSources = [setMeasurement?.source, driftMeasurement?.source].filter(Boolean);
+  if (
+    !Number.isFinite(setTrue) ||
+    !Number.isFinite(drift) ||
+    !source ||
+    childSources.some((childSource) => childSource !== source)
+  ) {
+    return null;
+  }
+  return {
+    setTrue,
+    drift,
+    source,
+    sourceKind: stringOrNull(value.sourceKind),
+    timestamp: isoTimestamp(
+      value.timestamp || setMeasurement?.timestamp || driftMeasurement?.timestamp,
+    ),
+    ageSeconds: Number.isFinite(finiteNumber(value.ageMs))
+      ? Math.max(0, finiteNumber(value.ageMs) / 1000)
+      : null,
+    origin: stringOrNull(value.origin),
+    gpsDependent: typeof value.gpsDependent === "boolean" ? value.gpsDependent : null,
+    quality: value.quality ?? null,
+  };
+}
+
+function referenceIndependentCurrent(value) {
+  const current = referenceCurrent(value);
+  if (
+    !current ||
+    current.gpsDependent !== false ||
+    !current.timestamp ||
+    !current.origin ||
+    !hasExplicitQuality(current.quality)
+  ) {
+    return null;
+  }
+  return current;
+}
+
+function referenceResidualCurrent(value) {
+  const residual = referenceCurrent(value);
+  if (
+    !residual ||
+    residual.origin !== "ground-minus-water-residual" ||
+    residual.gpsDependent !== true ||
+    !residual.timestamp ||
+    !hasExplicitQuality(residual.quality)
+  ) {
+    return null;
+  }
+  return residual;
+}
+
+function hasExplicitQuality(value) {
+  if (typeof value === "string") return value.trim().length > 0;
+  return Boolean(
+    value &&
+      typeof value === "object" &&
+      !Array.isArray(value) &&
+      Object.keys(value).length > 0,
+  );
+}
+
+function firstEntryForSource(app, paths, source) {
+  for (const path of paths) {
+    const entry = getSelfEntry(app, path);
+    if (!entry || typeof entry !== "object") continue;
+    if (source) {
+      if (hasSourceValue(entry, source)) return entry;
+      continue;
+    }
+    if (Object.hasOwn(entry, "value")) return entry;
+  }
+  return undefined;
+}
+
+function entryEvidence(entry, source) {
+  if (!entry) return null;
+  const timestamp = sourceTimestamp(entry, source);
+  return {
+    source: source || entry?.$source || null,
+    timestamp: timestamp ? new Date(timestamp).toISOString() : null,
+  };
+}
+
+function timestampNumber(value) {
+  const result = Date.parse(value || "");
+  return Number.isFinite(result) ? result : 0;
+}
+
+function isoTimestamp(value) {
+  const result = timestampNumber(value);
+  return result ? new Date(result).toISOString() : null;
+}
+
+function stringOrNull(value) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function finiteOrNull(value) {
+  const number = finiteNumber(value);
+  return Number.isFinite(number) ? number : null;
 }
 
 function explicitNoGps(methodQuality, satellites) {
@@ -772,22 +1077,11 @@ function isPosition(value) {
 }
 
 function finiteNumber(value) {
+  if (value === null || value === undefined || value === "" || typeof value === "boolean") {
+    return NaN;
+  }
   const number = Number(value);
   return Number.isFinite(number) ? number : NaN;
-}
-
-function firstPath(app, paths) {
-  const entry = firstEntry(app, paths);
-  return entry === undefined ? undefined : readEntryValue(entry, defaultEntrySource(entry));
-}
-
-function firstEntry(app, paths) {
-  for (const path of paths) {
-    const entry = getSelfEntry(app, path);
-    const value = readEntryValue(entry, defaultEntrySource(entry));
-    if (value !== undefined && value !== null) return entry;
-  }
-  return undefined;
 }
 
 function normalizeOptions(value = {}) {
@@ -849,7 +1143,11 @@ function buildManualFixVectors(sample) {
     };
   };
   return {
-    headingThroughWater: vector(sample.speedThroughWater ?? sample.speedOverGround, sample.headingTrue ?? sample.headingMagnetic, "single"),
+    headingThroughWater: vector(
+      sample.speedThroughWater,
+      sample.trackThroughWaterTrue ?? sample.headingTrue,
+      "single",
+    ),
     tide: vector(sample.currentDrift, sample.currentSetTrue, "triple"),
     courseOverGround: vector(sample.speedOverGround, sample.courseOverGroundTrue, "double"),
   };

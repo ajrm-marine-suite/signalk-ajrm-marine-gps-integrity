@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.6.1
+
+- Consume AJRM Marine Navigation Reference schema v1 when available and retain
+  explicit source, freshness, uncertainty, GPS-dependence, current origin, and
+  leeway provenance.
+- Keep GNSS position, SOG, COG, method quality, satellite count, and HDOP on
+  one selected source.
+- Separate operational fallback DR from integrity comparison DR. Integrity DR
+  no longer uses the GNSS-under-test COG/SOG or GPS-derived current/residual.
+- Require current as a fresh atomic same-source vector with explicit origin,
+  GPS-dependence, and quality metadata; do not pair raw set and drift
+  independently.
+- Retain a fresh qualified Navigation Reference ground-minus-water residual as
+  GPS-dependent operational current when independent current is unavailable,
+  while continuing to exclude it from integrity DR.
+- Report full, reduced, or unavailable integrity assurance and expose unknown
+  leeway in the state, projection paths, diagnostics, and status page.
+- Withhold malformed mixed-source Navigation Reference ground triplets, and do
+  not label reduced or unavailable GPS-realigned integrity projections as
+  GPS-independent.
+- Stop treating magnetic heading as true heading and avoid adding current or
+  leeway twice to an over-ground vector.
+
 ## 0.5.24
 
 - Track dead-reckoning discrepancy state from the numeric evaluator result

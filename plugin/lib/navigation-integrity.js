@@ -19,14 +19,27 @@ function evaluateNavigationIntegrity(sample, previousState = null, options = {})
     : null;
   const positionFresh = positionAgeSeconds === null || positionAgeSeconds <= settings.gpsLostSeconds;
   const rawMotionSample = freshNavigationSample(sample, nowMs, settings);
-  const hdop = finiteNumber(sample.hdop);
-  const satellites = finiteNumber(sample.satellites);
-  const explicitGpsUnavailable = sample.explicitGpsUnavailable === true;
+  const hdop = finiteNumber(
+    freshTimedValue(sample.hdop, sample.hdopTimestamp, nowMs, settings),
+  );
+  const satellites = finiteNumber(
+    freshTimedValue(sample.satellites, sample.satellitesTimestamp, nowMs, settings),
+  );
+  const explicitGpsUnavailable =
+    freshTimedValue(
+      sample.explicitGpsUnavailable === true,
+      sample.explicitGpsUnavailableTimestamp,
+      nowMs,
+      settings,
+    ) === true;
   const fixValid = sample.fixValid !== false && !explicitGpsUnavailable && Boolean(position) && positionFresh;
   let motionSample = navigationSampleWithTrustedCurrent(rawMotionSample, previousState, {
     allowLiveCurrent: fixValid,
     nowMs,
+    settings,
   });
+  const independentMotionSample = independentNavigationSample(rawMotionSample);
+  const integrityAssurance = assessIntegrityAssurance(independentMotionSample);
   const reasons = [];
   let trust = "normal";
   let acceptedGps = false;
@@ -88,11 +101,12 @@ function evaluateNavigationIntegrity(sample, previousState = null, options = {})
     distanceMeters(previousIntegrityDr.position, position) > settings.positionNoiseAllowanceMeters;
   const integrityMotionSample = stationaryAtTrustedFix
     ? {
-        ...motionSample,
+        ...independentMotionSample,
         currentSetTrue: undefined,
         currentDrift: undefined,
+        currentEvidence: null,
       }
-    : motionSample;
+    : independentMotionSample;
 
   if (fixValid && lastTrustedFix?.position) {
     const elapsedSeconds = Math.max(0.001, (nowMs - timestampMs(lastTrustedFix.timestamp)) / 1000);
@@ -136,6 +150,7 @@ function evaluateNavigationIntegrity(sample, previousState = null, options = {})
     integrityMotionSample,
     settings,
     nowMs,
+    { allowGroundTrack: false },
   );
   if (propagatedIntegrity) {
     integrityDeadReckoning = makeDrTrack({
@@ -147,17 +162,40 @@ function evaluateNavigationIntegrity(sample, previousState = null, options = {})
       motionSample: integrityMotionSample,
       settings,
       trust,
-      source: drSource(integrityMotionSample),
+      source: integrityDrSource(integrityMotionSample, integrityAssurance),
       lastRealignedAt: previousIntegrityDr?.lastRealignedAt || null,
       realignIntervalSeconds: settings.integrityDrRealignSeconds,
+      assurance: integrityAssurance,
     });
   }
 
   if (resetBaselineFromCandidate && position) {
-    integrityDeadReckoning = makeRealignedDrTrack(position, sample, motionSample, settings, trust, nowMs);
+    integrityDeadReckoning = makeRealignedDrTrack(
+      position,
+      sample,
+      integrityMotionSample,
+      settings,
+      trust,
+      nowMs,
+      integrityAssurance,
+    );
   } else if (stationaryNeedsRealign && position) {
-    integrityDeadReckoning = makeRealignedDrTrack(position, sample, integrityMotionSample, settings, trust, nowMs);
-  } else if (fixValid && !gpsTrackOverSpeed && integrityDeadReckoning?.position && !stationaryAtTrustedFix) {
+    integrityDeadReckoning = makeRealignedDrTrack(
+      position,
+      sample,
+      integrityMotionSample,
+      settings,
+      trust,
+      nowMs,
+      integrityAssurance,
+    );
+  } else if (
+    integrityAssurance.comparisonAvailable &&
+    fixValid &&
+    !gpsTrackOverSpeed &&
+    integrityDeadReckoning?.position &&
+    !stationaryAtTrustedFix
+  ) {
     const discrepancy = distanceMeters(integrityDeadReckoning.position, position);
     if (discrepancy > settings.warningDrDiscrepancyMeters) {
       trust = maxTrust(trust, "degraded");
@@ -178,6 +216,8 @@ function evaluateNavigationIntegrity(sample, previousState = null, options = {})
       timestamp: new Date(nowMs).toISOString(),
       hdop: Number.isFinite(hdop) ? hdop : null,
       satellites: Number.isFinite(satellites) ? satellites : null,
+      source: sample.source || null,
+      provenance: sample.gnssProvenance || null,
     };
     const liveCurrent = currentSnapshotFromSample(rawMotionSample, nowMs);
     if (liveCurrent) lastTrustedCurrent = liveCurrent;
@@ -186,6 +226,7 @@ function evaluateNavigationIntegrity(sample, previousState = null, options = {})
     motionSample = navigationSampleWithTrustedCurrent(rawMotionSample, previousState, {
       allowLiveCurrent: false,
       nowMs,
+      settings,
     });
   }
 
@@ -211,7 +252,15 @@ function evaluateNavigationIntegrity(sample, previousState = null, options = {})
       !integrityDeadReckoning?.lastRealignedAt ||
       nowMs - timestampMs(integrityDeadReckoning.lastRealignedAt) >= settings.integrityDrRealignSeconds * 1000);
   if (shouldRealignIntegrity) {
-    integrityDeadReckoning = makeRealignedDrTrack(position, sample, motionSample, settings, trust, nowMs);
+    integrityDeadReckoning = makeRealignedDrTrack(
+      position,
+      sample,
+      integrityMotionSample,
+      settings,
+      trust,
+      nowMs,
+      integrityAssurance,
+    );
   }
 
   if (acceptedGps && position) {
@@ -262,7 +311,15 @@ function evaluateNavigationIntegrity(sample, previousState = null, options = {})
   }
 
   if (!integrityDeadReckoning?.position && acceptedGps && position) {
-    integrityDeadReckoning = makeRealignedDrTrack(position, sample, motionSample, settings, trust, nowMs);
+    integrityDeadReckoning = makeRealignedDrTrack(
+      position,
+      sample,
+      integrityMotionSample,
+      settings,
+      trust,
+      nowMs,
+      integrityAssurance,
+    );
   }
 
   const vectors = buildVectors(motionSample, settings, trust);
@@ -304,7 +361,9 @@ function evaluateNavigationIntegrity(sample, previousState = null, options = {})
       explicitGpsUnavailable,
       speedOverGround: finiteOrNull(motionSample.speedOverGround),
       courseOverGroundTrue: finiteOrNull(motionSample.courseOverGroundTrue),
-      headingTrue: finiteOrNull(motionSample.headingTrue),
+      headingTrue: finiteOrNull(rawMotionSample.headingTrue),
+      source: sample.source || null,
+      provenance: sample.gnssProvenance || null,
     },
     lastTrustedFix,
     lastTrustedCurrent,
@@ -318,6 +377,8 @@ function evaluateNavigationIntegrity(sample, previousState = null, options = {})
     deadReckoning: operationalDeadReckoning,
     operationalDeadReckoning,
     integrityDeadReckoning,
+    integrityAssurance,
+    navigationProvenance: navigationProvenance(rawMotionSample),
     diagnostics: buildDiagnostics({
       sample,
       rawMotionSample,
@@ -394,6 +455,9 @@ function buildDiagnostics({
       speedThroughWater: finiteOrNull(rawMotionSample.speedThroughWater),
       currentSetTrue: finiteOrNull(rawMotionSample.currentSetTrue),
       currentDrift: finiteOrNull(rawMotionSample.currentDrift),
+      gnssSource: sample.source || null,
+      gnssProvenance: sample.gnssProvenance || null,
+      navigationReference: sample.navigationReference || null,
     },
     decision: {
       trust,
@@ -411,6 +475,7 @@ function buildDiagnostics({
       headingTrue: finiteOrNull(motionSample.headingTrue),
       speedThroughWater: finiteOrNull(motionSample.speedThroughWater),
       current,
+      leewayStatus: motionSample.leewayStatus || "unknown",
     },
     deadReckoning: {
       operationalSource: operationalDeadReckoning?.source || null,
@@ -419,6 +484,10 @@ function buildDiagnostics({
       integritySource: integrityDeadReckoning?.source || null,
       integrityAgeSeconds: finiteOrNull(integrityDeadReckoning?.ageSeconds),
       integrityUncertaintyRadiusMeters: finiteOrNull(integrityDeadReckoning?.uncertaintyRadiusMeters),
+      integrityAssurance: integrityDeadReckoning?.assurance || "unavailable",
+      integrityComparisonAvailable: integrityDeadReckoning?.comparisonAvailable === true,
+      integrityUnavailableReason: integrityDeadReckoning?.unavailableReason || null,
+      integrityLeewayStatus: integrityDeadReckoning?.leewayStatus || "unknown",
     },
     baseline: {
       lastTrustedFixTimestamp: lastTrustedFix?.timestamp || null,
@@ -439,7 +508,22 @@ function buildDiagnostics({
       overSpeedConfirmationSamples: settings.overSpeedConfirmationSamples,
       overSpeedCoherenceMultiplier: settings.overSpeedCoherenceMultiplier,
       replayTimeScale: settings.replayTimeScale,
+      currentMaxAgeSeconds: settings.currentMaxAgeSeconds,
+      retainedCurrentMaxAgeSeconds: settings.retainedCurrentMaxAgeSeconds,
     },
+  };
+}
+
+function navigationProvenance(sample) {
+  return {
+    gnss: sample.gnssProvenance || null,
+    headingTrue: sample.headingTrueEvidence || null,
+    speedThroughWater: sample.speedThroughWaterEvidence || null,
+    trackThroughWaterTrue: sample.trackThroughWaterTrueEvidence || null,
+    leeway: sample.leewayEvidence || null,
+    leewayStatus: sample.leewayStatus || "unknown",
+    current: sample.currentEvidence || null,
+    navigationReference: sample.navigationReference || null,
   };
 }
 
@@ -519,23 +603,46 @@ function updateOverSpeedCandidate(candidate, position, nowMs, settings) {
 }
 
 function freshNavigationSample(sample, nowMs, settings) {
+  const speedOverGround = freshTimedValue(
+    sample.speedOverGround,
+    sample.speedOverGroundTimestamp,
+    nowMs,
+    settings,
+  );
+  const courseOverGroundTrue = freshTimedValue(
+    sample.courseOverGroundTrue,
+    sample.courseOverGroundTrueTimestamp,
+    nowMs,
+    settings,
+  );
+  const headingTrue = freshTimedValue(sample.headingTrue, sample.headingTrueTimestamp, nowMs, settings);
+  const speedThroughWater = freshTimedValue(
+    sample.speedThroughWater,
+    sample.speedThroughWaterTimestamp,
+    nowMs,
+    settings,
+  );
+  const trackThroughWaterTrue = freshTimedValue(
+    sample.trackThroughWaterTrue,
+    sample.trackThroughWaterTrueTimestamp,
+    nowMs,
+    settings,
+  );
+  const leeway = freshTimedValue(sample.leeway, sample.leewayTimestamp, nowMs, settings);
   return {
     ...sample,
-    speedOverGround: freshTimedValue(sample.speedOverGround, sample.speedOverGroundTimestamp, nowMs, settings),
-    courseOverGroundTrue: freshTimedValue(
-      sample.courseOverGroundTrue,
-      sample.courseOverGroundTrueTimestamp,
-      nowMs,
-      settings,
-    ),
-    headingTrue: freshTimedValue(sample.headingTrue, sample.headingTrueTimestamp, nowMs, settings),
-    headingMagnetic: freshTimedValue(sample.headingMagnetic, sample.headingMagneticTimestamp, nowMs, settings),
-    speedThroughWater: freshTimedValue(
-      sample.speedThroughWater,
-      sample.speedThroughWaterTimestamp,
-      nowMs,
-      settings,
-    ),
+    speedOverGround,
+    courseOverGroundTrue,
+    headingTrue,
+    headingTrueEvidence: headingTrue === undefined ? null : sample.headingTrueEvidence,
+    speedThroughWater,
+    speedThroughWaterEvidence: speedThroughWater === undefined ? null : sample.speedThroughWaterEvidence,
+    trackThroughWaterTrue,
+    trackThroughWaterTrueEvidence:
+      trackThroughWaterTrue === undefined ? null : sample.trackThroughWaterTrueEvidence,
+    leeway,
+    leewayEvidence: leeway === undefined ? null : sample.leewayEvidence,
+    currentEvidence: currentSnapshotFromSample(sample, nowMs, settings),
   };
 }
 
@@ -546,21 +653,33 @@ function freshTimedValue(value, timestamp, nowMs, settings) {
   return nowMs - valueTimestampMs <= settings.gpsLostSeconds * 1000 ? value : undefined;
 }
 
-function navigationSampleWithTrustedCurrent(sample, previousState, { allowLiveCurrent, nowMs }) {
-  const liveCurrent = currentSnapshotFromSample(sample, nowMs);
-  if (allowLiveCurrent && liveCurrent) {
+function navigationSampleWithTrustedCurrent(sample, previousState, {
+  allowLiveCurrent,
+  nowMs,
+  settings = normalizeOptions({}),
+}) {
+  const liveCurrent = currentSnapshotFromSample(sample, nowMs, settings);
+  if (liveCurrent && (allowLiveCurrent || liveCurrent.gpsDependent === false)) {
     return {
       ...sample,
       currentSetTrue: liveCurrent.setTrue,
       currentDrift: liveCurrent.drift,
       currentTimestamp: liveCurrent.timestamp,
       currentSource: "live",
-      currentAgeSeconds: 0,
+      currentAgeSeconds: liveCurrent.ageSeconds,
+      currentEvidence: liveCurrent,
     };
   }
 
   const retainedCurrent = normalizeCurrentSnapshot(previousState?.lastTrustedCurrent);
-  if (retainedCurrent) {
+  const retainedAgeSeconds = retainedCurrent?.timestamp
+    ? Math.max(0, (nowMs - timestampMs(retainedCurrent.timestamp)) / 1000)
+    : null;
+  if (
+    retainedCurrent &&
+    retainedAgeSeconds !== null &&
+    retainedAgeSeconds <= settings.retainedCurrentMaxAgeSeconds
+  ) {
     const currentTimestampMs = timestampMs(retainedCurrent.timestamp);
     return {
       ...sample,
@@ -569,6 +688,10 @@ function navigationSampleWithTrustedCurrent(sample, previousState, { allowLiveCu
       currentTimestamp: retainedCurrent.timestamp,
       currentSource: "last-trusted-current",
       currentAgeSeconds: currentTimestampMs ? Math.max(0, (nowMs - currentTimestampMs) / 1000) : null,
+      currentEvidence: {
+        ...retainedCurrent,
+        ageSeconds: retainedAgeSeconds,
+      },
     };
   }
 
@@ -579,38 +702,179 @@ function navigationSampleWithTrustedCurrent(sample, previousState, { allowLiveCu
     currentTimestamp: null,
     currentSource: "unavailable",
     currentAgeSeconds: null,
+    currentEvidence: null,
   };
 }
 
-function currentSnapshotFromSample(sample, nowMs) {
-  const setTrue = finiteNumber(sample.currentSetTrue);
-  const drift = finiteNumber(sample.currentDrift);
-  if (!Number.isFinite(setTrue) || !Number.isFinite(drift)) return null;
-  const timestamp =
-    sample.currentTimestamp ||
-    latestTimestamp(sample.currentSetTrueTimestamp, sample.currentDriftTimestamp) ||
-    sample.timestamp ||
-    new Date(nowMs).toISOString();
+function independentNavigationSample(sample) {
+  const headingEvidence = normalizeMeasurementEvidence(
+    sample.headingTrueEvidence,
+    sample.headingTrue,
+    sample.headingTrueTimestamp,
+  );
+  const speedEvidence = normalizeMeasurementEvidence(
+    sample.speedThroughWaterEvidence,
+    sample.speedThroughWater,
+    sample.speedThroughWaterTimestamp,
+  );
+  const trackEvidence = normalizeMeasurementEvidence(
+    sample.trackThroughWaterTrueEvidence,
+    sample.trackThroughWaterTrue,
+    sample.trackThroughWaterTrueTimestamp,
+  );
+  const leewayEvidence = normalizeMeasurementEvidence(
+    sample.leewayEvidence,
+    sample.leeway,
+    sample.leewayTimestamp,
+  );
+  const currentEvidence = normalizeCurrentSnapshot(sample.currentEvidence);
+  const independentHeading = headingEvidence?.gpsDependent === false ? headingEvidence : null;
+  const independentSpeed = speedEvidence?.gpsDependent === false ? speedEvidence : null;
+  const independentTrack = trackEvidence?.gpsDependent === false ? trackEvidence : null;
+  const independentLeeway = leewayEvidence?.gpsDependent === false ? leewayEvidence : null;
+  const independentCurrent = currentEvidence?.gpsDependent === false ? currentEvidence : null;
+  return {
+    ...sample,
+    speedOverGround: undefined,
+    courseOverGroundTrue: undefined,
+    headingTrue: independentHeading?.value,
+    headingTrueTimestamp: independentHeading?.timestamp || null,
+    headingTrueEvidence: independentHeading,
+    speedThroughWater: independentSpeed?.value,
+    speedThroughWaterTimestamp: independentSpeed?.timestamp || null,
+    speedThroughWaterEvidence: independentSpeed,
+    trackThroughWaterTrue: independentTrack?.value,
+    trackThroughWaterTrueTimestamp: independentTrack?.timestamp || null,
+    trackThroughWaterTrueEvidence: independentTrack,
+    leeway: independentLeeway?.value,
+    leewayTimestamp: independentLeeway?.timestamp || null,
+    leewayEvidence: independentLeeway,
+    leewayStatus: sample.leewayStatus === "known" && independentLeeway ? "known" : "unknown",
+    currentSetTrue: independentCurrent?.setTrue,
+    currentDrift: independentCurrent?.drift,
+    currentTimestamp: independentCurrent?.timestamp || null,
+    currentAgeSeconds: independentCurrent?.ageSeconds ?? null,
+    currentSource: independentCurrent ? "live-independent" : "unavailable",
+    currentEvidence: independentCurrent,
+  };
+}
+
+function assessIntegrityAssurance(sample) {
+  const headingAvailable = Number.isFinite(finiteNumber(sample.trackThroughWaterTrue)) ||
+    Number.isFinite(finiteNumber(sample.headingTrue));
+  const speedAvailable = Number.isFinite(finiteNumber(sample.speedThroughWater));
+  const currentAvailable = Boolean(normalizeCurrentSnapshot(sample.currentEvidence));
+  const leewayKnown =
+    sample.leewayStatus === "known" &&
+    (Number.isFinite(finiteNumber(sample.trackThroughWaterTrue)) ||
+      Number.isFinite(finiteNumber(sample.leeway)));
+  const missing = [];
+  if (!headingAvailable) missing.push("independent true heading");
+  if (!speedAvailable) missing.push("independent speed through water");
+  if (!currentAvailable) missing.push("independent current");
+  if (!leewayKnown) missing.push("leeway");
+  const status = !headingAvailable || !speedAvailable
+    ? "unavailable"
+    : currentAvailable && leewayKnown
+      ? "full"
+      : "reduced";
+  return {
+    status,
+    comparisonAvailable: status === "full",
+    gpsDependent: status !== "full",
+    missing,
+    reason: missing.length
+      ? `Independent integrity comparison ${status}: missing ${missing.join(", ")}.`
+      : "Independent heading, water speed, current, and leeway are available.",
+    leewayStatus: leewayKnown ? "known" : "unknown",
+    headingSource: sample.trackThroughWaterTrueEvidence?.source || sample.headingTrueEvidence?.source || null,
+    speedThroughWaterSource: sample.speedThroughWaterEvidence?.source || null,
+    currentSource: sample.currentEvidence?.source || null,
+    currentOrigin: sample.currentEvidence?.origin || null,
+  };
+}
+
+function currentSnapshotFromSample(sample, nowMs, settings = normalizeOptions({})) {
+  const evidence = normalizeCurrentSnapshot(sample.currentEvidence);
+  if (!evidence) return null;
+  const timestampMsValue = timestampMs(evidence.timestamp);
+  const reportedAgeSeconds = Number.isFinite(finiteNumber(evidence.ageSeconds))
+    ? Math.max(0, finiteNumber(evidence.ageSeconds))
+    : null;
+  const timestampAgeSeconds = timestampMsValue
+    ? Math.max(0, (nowMs - timestampMsValue) / 1000)
+    : null;
+  const ageSeconds =
+    reportedAgeSeconds === null
+      ? timestampAgeSeconds
+      : timestampAgeSeconds === null
+        ? reportedAgeSeconds
+        : Math.max(reportedAgeSeconds, timestampAgeSeconds);
+  if (ageSeconds === null || ageSeconds > settings.currentMaxAgeSeconds) return null;
+  return {
+    ...evidence,
+    setTrueDegrees: normalizeDegrees(evidence.setTrue * DEG_PER_RAD),
+    driftKnots: evidence.drift * MPS_TO_KNOTS,
+    ageSeconds,
+  };
+}
+
+function normalizeCurrentSnapshot(value) {
+  const setTrue = finiteNumber(value?.setTrue ?? value?.currentSetTrue);
+  const drift = finiteNumber(value?.drift ?? value?.currentDrift);
+  const source = nonEmptyString(value?.source);
+  const timestamp = nonEmptyString(value?.timestamp);
+  const origin = nonEmptyString(value?.origin);
+  const quality = value?.quality;
+  if (
+    !Number.isFinite(setTrue) ||
+    !Number.isFinite(drift) ||
+    !source ||
+    !timestamp ||
+    !origin ||
+    typeof value?.gpsDependent !== "boolean" ||
+    !hasExplicitQuality(quality)
+  ) {
+    return null;
+  }
   return {
     setTrue,
     drift,
     setTrueDegrees: normalizeDegrees(setTrue * DEG_PER_RAD),
     driftKnots: drift * MPS_TO_KNOTS,
     timestamp,
+    source,
+    sourceKind: nonEmptyString(value?.sourceKind),
+    origin,
+    gpsDependent: value.gpsDependent,
+    quality,
+    ageSeconds: Number.isFinite(finiteNumber(value?.ageSeconds))
+      ? Math.max(0, finiteNumber(value.ageSeconds))
+      : null,
   };
 }
 
-function normalizeCurrentSnapshot(value) {
-  const setTrue = finiteNumber(value?.setTrue);
-  const drift = finiteNumber(value?.drift);
-  if (!Number.isFinite(setTrue) || !Number.isFinite(drift)) return null;
+function normalizeMeasurementEvidence(evidence, fallbackValue, fallbackTimestamp) {
+  const value = finiteNumber(evidence?.value ?? fallbackValue);
+  if (!Number.isFinite(value)) return null;
   return {
-    setTrue,
-    drift,
-    setTrueDegrees: normalizeDegrees(setTrue * DEG_PER_RAD),
-    driftKnots: drift * MPS_TO_KNOTS,
-    timestamp: value.timestamp || null,
+    value,
+    source: nonEmptyString(evidence?.source),
+    sourceKind: nonEmptyString(evidence?.sourceKind),
+    timestamp: nonEmptyString(evidence?.timestamp) || fallbackTimestamp || null,
+    method: nonEmptyString(evidence?.method),
+    gpsDependent: typeof evidence?.gpsDependent === "boolean" ? evidence.gpsDependent : null,
+    uncertaintyRad: finiteOrNull(evidence?.uncertaintyRad),
   };
+}
+
+function hasExplicitQuality(value) {
+  if (typeof value === "string") return value.trim().length > 0;
+  return Boolean(value && typeof value === "object" && Object.keys(value).length > 0);
+}
+
+function nonEmptyString(value) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
 function currentStateFromSample(sample) {
@@ -633,16 +897,11 @@ function currentStateFromSample(sample) {
     driftKnots: drift * MPS_TO_KNOTS,
     timestamp: sample.currentTimestamp || null,
     ageSeconds: sample.currentAgeSeconds ?? null,
+    origin: sample.currentEvidence?.origin || null,
+    gpsDependent: sample.currentEvidence?.gpsDependent ?? null,
+    quality: sample.currentEvidence?.quality ?? null,
+    providerSource: sample.currentEvidence?.source || null,
   };
-}
-
-function latestTimestamp(...values) {
-  let latest = null;
-  for (const value of values) {
-    const ms = timestampMs(value);
-    if (ms && (!latest || ms > latest.ms)) latest = { value, ms };
-  }
-  return latest?.value || null;
 }
 
 function propagateDeadReckoning(previousState, sample, settings, nowMs) {
@@ -652,7 +911,15 @@ function propagateDeadReckoning(previousState, sample, settings, nowMs) {
   return propagateDeadReckoningFrom(previousPosition, previousTime, sample, sample, settings, nowMs);
 }
 
-function propagateDeadReckoningFrom(previousPosition, previousTimestamp, sample, motionSample, settings, nowMs) {
+function propagateDeadReckoningFrom(
+  previousPosition,
+  previousTimestamp,
+  sample,
+  motionSample,
+  settings,
+  nowMs,
+  motionPolicy = {},
+) {
   const previousTime = timestampMs(previousTimestamp);
   if (!previousPosition || !previousTime) return null;
   const elapsedSeconds = Math.max(
@@ -665,7 +932,7 @@ function propagateDeadReckoningFrom(previousPosition, previousTimestamp, sample,
   if (elapsedSeconds <= 0) return { position: previousPosition };
 
   const effectiveSample = motionSample || sample;
-  const motion = drMotion(effectiveSample, settings);
+  const motion = drMotion(effectiveSample, settings, motionPolicy);
   const boat = vectorFromSpeedBearing(motion.speed, motion.bearing);
   const current = currentVectorForMotion(motion, effectiveSample);
   const total = {
@@ -677,7 +944,15 @@ function propagateDeadReckoningFrom(previousPosition, previousTimestamp, sample,
   };
 }
 
-function makeRealignedDrTrack(position, sample, motionSample, settings, trust, nowMs) {
+function makeRealignedDrTrack(
+  position,
+  sample,
+  motionSample,
+  settings,
+  trust,
+  nowMs,
+  assurance = null,
+) {
   return makeDrTrack({
     position,
     uncertaintyAgeSeconds: 0,
@@ -685,9 +960,10 @@ function makeRealignedDrTrack(position, sample, motionSample, settings, trust, n
     motionSample,
     settings,
     trust,
-    source: "gps-realigned",
+    source: assurance?.status === "unavailable" ? "gps-realigned-no-independent-motion" : "gps-realigned",
     lastRealignedAt: new Date(nowMs).toISOString(),
     realignIntervalSeconds: settings.integrityDrRealignSeconds,
+    assurance,
   });
 }
 
@@ -701,6 +977,7 @@ function makeDrTrack({
   source,
   lastRealignedAt,
   realignIntervalSeconds,
+  assurance = null,
 }) {
   return {
     position,
@@ -709,16 +986,58 @@ function makeDrTrack({
     ageSeconds: uncertaintyAgeSeconds,
     lastRealignedAt,
     realignIntervalSeconds,
+    assurance: assurance?.status || null,
+    comparisonAvailable: assurance?.comparisonAvailable ?? null,
+    unavailableReason: assurance?.reason || null,
+    gpsDependent: assurance
+      ? assurance.gpsDependent !== false
+      : drGpsDependency(source, motionSample),
+    leewayStatus: assurance?.leewayStatus || motionSample?.leewayStatus || "unknown",
+    currentOrigin: motionSample?.currentEvidence?.origin || null,
+    provenance: {
+      heading: motionSample?.headingTrueEvidence || null,
+      trackThroughWater: motionSample?.trackThroughWaterTrueEvidence || null,
+      speedThroughWater: motionSample?.speedThroughWaterEvidence || null,
+      current: motionSample?.currentEvidence || null,
+      leeway: motionSample?.leewayEvidence || null,
+    },
   };
 }
 
+function drGpsDependency(source, sample) {
+  if (source === "gps-locked" || source === "cog-sog" || source === "cog-sog-gps-dependent") {
+    return true;
+  }
+  const dependencies =
+    source === "tide-current"
+      ? [sample?.currentEvidence?.gpsDependent]
+      : source === "heading-stw" || source === "heading-stw-current"
+        ? [
+            sample?.trackThroughWaterTrueEvidence
+              ? sample.trackThroughWaterTrueEvidence.gpsDependent
+              : sample?.headingTrueEvidence?.gpsDependent,
+            sample?.speedThroughWaterEvidence?.gpsDependent,
+            ...(sample?.trackThroughWaterTrueEvidence || sample?.leewayStatus !== "known"
+              ? []
+              : [sample?.leewayEvidence?.gpsDependent]),
+            ...(source === "heading-stw-current"
+              ? [sample?.currentEvidence?.gpsDependent]
+              : []),
+          ]
+        : [];
+  if (dependencies.some((value) => typeof value !== "boolean")) return null;
+  if (dependencies.includes(true)) return true;
+  if (dependencies.length > 0) return false;
+  return null;
+}
+
 function buildVectors(sample, settings = normalizeOptions({}), trust = "normal") {
-  const heading = firstFinite(sample.headingTrue, sample.headingMagnetic);
+  const heading = trackThroughWaterBearing(sample);
   const derivedOverGround = makeDerivedOverGroundVector(sample, settings);
   const gpsOverGround = makeVector(sample.speedOverGround, sample.courseOverGroundTrue, "double");
   return {
     headingThroughWater: makeVector(
-      firstFinite(sample.speedThroughWater, sample.speedOverGround),
+      sample.speedThroughWater,
       heading,
       "single",
     ),
@@ -795,11 +1114,31 @@ function uncertaintyRadius(ageSeconds, sample, settings, trust) {
   if (ageSeconds === null) return null;
   const base = trust === "normal" ? settings.baseUncertaintyMeters : settings.degradedBaseUncertaintyMeters;
   const currentPenalty = Number.isFinite(finiteNumber(sample.currentDrift)) ? 0.3 : 1;
-  return Math.round(base + ageSeconds * (settings.uncertaintyGrowthMetersPerSecond + currentPenalty));
+  const speedThroughWater = Math.abs(finiteNumber(sample.speedThroughWater));
+  const angularUncertainty = firstFinite(
+    sample.trackThroughWaterTrueEvidence?.uncertaintyRad,
+    sample.headingTrueEvidence?.uncertaintyRad,
+    0,
+  );
+  const transversePenalty = Number.isFinite(speedThroughWater)
+    ? speedThroughWater * Math.abs(Math.sin(angularUncertainty))
+    : 0;
+  const unknownLeewayPenalty =
+    sample.leewayStatus === "known" || !Number.isFinite(speedThroughWater)
+      ? 0
+      : speedThroughWater * settings.unknownLeewayFraction;
+  return Math.round(
+    base +
+      ageSeconds *
+        (settings.uncertaintyGrowthMetersPerSecond +
+          currentPenalty +
+          transversePenalty +
+          unknownLeewayPenalty),
+  );
 }
 
 function drSource(sample) {
-  const motion = drMotion(sample, normalizeOptions({}));
+  const motion = drMotion(sample, normalizeOptions({}), { allowGroundTrack: true });
   if (motion.source === "heading-stw" && currentVectorForMotion(motion, sample).available) {
     return "heading-stw-current";
   }
@@ -807,15 +1146,24 @@ function drSource(sample) {
   return "last-known-position";
 }
 
-function drMotion(sample, settings) {
+function integrityDrSource(sample, assurance) {
+  if (assurance?.status === "unavailable") return "independent-motion-unavailable";
+  const motion = drMotion(sample, normalizeOptions({}), { allowGroundTrack: false });
+  if (motion.source === "heading-stw" && currentVectorForMotion(motion, sample).available) {
+    return "heading-stw-independent-current";
+  }
+  return motion.source || "independent-motion-unavailable";
+}
+
+function drMotion(sample, settings, { allowGroundTrack = true } = {}) {
   const stw = finiteNumber(sample.speedThroughWater);
   const sog = finiteNumber(sample.speedOverGround);
-  const heading = firstFinite(sample.headingTrue, sample.headingMagnetic);
+  const heading = trackThroughWaterBearing(sample);
   const cog = finiteNumber(sample.courseOverGroundTrue);
   if (Number.isFinite(stw) && stw >= settings.minReliableStwMps && Number.isFinite(heading)) {
     return { speed: stw, bearing: heading, source: "heading-stw" };
   }
-  if (Number.isFinite(sog) && sog >= settings.minReliableSogMps && Number.isFinite(cog)) {
+  if (allowGroundTrack && Number.isFinite(sog) && sog >= settings.minReliableSogMps && Number.isFinite(cog)) {
     return { speed: sog, bearing: cog, source: "cog-sog" };
   }
   const current = currentVector(sample);
@@ -827,10 +1175,23 @@ function drMotion(sample, settings) {
   if (Number.isFinite(stw) && Number.isFinite(heading)) {
     return { speed: stw, bearing: heading, source: "heading-stw" };
   }
-  if (Number.isFinite(sog) && Number.isFinite(cog)) {
+  if (allowGroundTrack && Number.isFinite(sog) && Number.isFinite(cog)) {
     return { speed: sog, bearing: cog, source: "cog-sog" };
   }
   return { speed: 0, bearing: 0, source: "" };
+}
+
+function trackThroughWaterBearing(sample) {
+  const explicitTrack = finiteNumber(sample.trackThroughWaterTrue);
+  if (Number.isFinite(explicitTrack)) return explicitTrack;
+  const heading = finiteNumber(sample.headingTrue);
+  if (!Number.isFinite(heading)) return NaN;
+  const leeway = finiteNumber(sample.leeway);
+  if (sample.leewayStatus === "known" && Number.isFinite(leeway)) {
+    const fullTurn = Math.PI * 2;
+    return ((heading + leeway) % fullTurn + fullTurn) % fullTurn;
+  }
+  return heading;
 }
 
 function normalizeOptions(value = {}) {
@@ -851,6 +1212,9 @@ function normalizeOptions(value = {}) {
     minReliableStwMps: clampNumber(value.minReliableStwMps, 0, 2, 0.25),
     minReliableSogMps: clampNumber(value.minReliableSogMps, 0, 2, 0.35),
     integrityDrRealignSeconds: clampNumber(value.integrityDrRealignSeconds, 60, 86400, 300),
+    currentMaxAgeSeconds: clampNumber(value.currentMaxAgeSeconds, 1, 600, 30),
+    retainedCurrentMaxAgeSeconds: clampNumber(value.retainedCurrentMaxAgeSeconds, 1, 86400, 900),
+    unknownLeewayFraction: clampNumber(value.unknownLeewayFraction, 0, 1, 0.1),
     distanceDisplayUnit: normalizeDistanceUnit(value.distanceDisplayUnit),
     replayTimeScale: clampNumber(value.replayTimeScale, 1, 500, 1),
   };
@@ -943,6 +1307,9 @@ function normalizePosition(value) {
 }
 
 function finiteNumber(value) {
+  if (value === null || value === undefined || value === "" || typeof value === "boolean") {
+    return NaN;
+  }
   const number = Number(value);
   return Number.isFinite(number) ? number : NaN;
 }

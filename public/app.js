@@ -36,12 +36,21 @@ function renderStatus(data) {
   }
   const counters = state.counters || {};
   const errorCount = (counters.rejectedFixes || 0) + (counters.lostFixes || 0) + (counters.degradedSignals || 0);
-  summary.textContent = state.reasons?.[0] || `GPS integrity is normal. ${errorCount} detected issues since start.`;
+  const integrityAssurance = state.integrityAssurance || {};
+  summary.textContent =
+    state.reasons?.[0] ||
+    (integrityAssurance.status && integrityAssurance.status !== "full"
+      ? integrityAssurance.reason
+      : `GPS integrity is normal. ${errorCount} detected issues since start.`);
   const gps = state.gps || {};
   const operationalDr = state.operationalDeadReckoning || state.deadReckoning || {};
   const integrityDr = state.integrityDeadReckoning || {};
   renderFacts(gpsFacts, [
     ["Source", sample.source || "canonical"],
+    [
+      "Source coherence",
+      sample.gnssProvenance?.coherent === true ? "Coherent" : "Unavailable",
+    ],
     ["Fix", gps.fixValid ? "Valid" : "Missing"],
     ["HDOP", gps.hdop ?? "n/a"],
     ["Satellites", gps.satellites ?? "n/a"],
@@ -59,6 +68,10 @@ function renderStatus(data) {
       operationalDr.uncertaintyRadiusMeters == null ? "n/a" : `${Math.round(operationalDr.uncertaintyRadiusMeters)} m`,
     ],
     ["Integrity source", integrityDr.source || "n/a"],
+    ["Integrity assurance", integrityDr.assurance || integrityAssurance.status || "unavailable"],
+    ["Comparison active", integrityDr.comparisonAvailable === true ? "Yes" : "No"],
+    ["Leeway", integrityDr.leewayStatus || "unknown"],
+    ["Current origin", integrityDr.currentOrigin || "n/a"],
     ["Integrity age", integrityDr.ageSeconds == null ? "n/a" : `${Math.round(integrityDr.ageSeconds)} s`],
     [
       "Integrity uncertainty",
