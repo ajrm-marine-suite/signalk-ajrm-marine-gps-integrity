@@ -692,12 +692,61 @@ test("publishes normal GPS notification clear only once while state stays normal
   plugin.stop();
 
   const notificationValues = messages
-    .flatMap((message) => message.updates.flatMap((update) => update.values))
+    .flatMap((message) =>
+      message.updates.flatMap((update) => update.values || []),
+    )
     .filter((value) => value.path === "notifications.navigation.gnss.integrity");
 
   assert.equal(notificationValues.length, 2);
   assert.equal(notificationValues[0].value, null);
   assert.equal(notificationValues[1].value, null);
+});
+
+test("publishes explicit units metadata for trusted motion and dead-reckoning projections", () => {
+  const messages = [];
+  const plugin = pluginFactory({
+    handleMessage(_pluginId, message) {
+      messages.push(message);
+    },
+    setPluginStatus() {},
+  });
+
+  plugin.start({ enabled: false });
+
+  const metadataUpdate = messages
+    .flatMap((message) => message.updates)
+    .find((update) => Array.isArray(update.meta));
+  assert.ok(metadataUpdate);
+  assert.equal(Object.hasOwn(metadataUpdate, "values"), false);
+  const metadata = Object.fromEntries(
+    metadataUpdate.meta.map((entry) => [entry.path, entry.value]),
+  );
+  assert.equal(
+    metadata["plugins.ajrmMarineGpsIntegrity.trusted.speedOverGround"].units,
+    "m/s",
+  );
+  assert.equal(
+    metadata[
+      "plugins.ajrmMarineGpsIntegrity.trusted.courseOverGroundTrue"
+    ].units,
+    "rad",
+  );
+  assert.equal(
+    metadata["plugins.ajrmMarineGpsIntegrity.trusted.headingTrue"].units,
+    "rad",
+  );
+  assert.equal(
+    metadata[
+      "plugins.ajrmMarineGpsIntegrity.deadReckoning.operational.uncertaintyRadiusMeters"
+    ].units,
+    "m",
+  );
+  assert.equal(
+    metadata[
+      "plugins.ajrmMarineGpsIntegrity.deadReckoning.integrity.realignIntervalSeconds"
+    ].units,
+    "s",
+  );
 });
 
 test("publishes trusted GPS and dead-reckoning projection paths", async () => {
@@ -1027,7 +1076,9 @@ test("publishes continuous lost GPS as one stable active notification", async ()
   plugin.stop();
 
   const notificationValues = messages
-    .flatMap((message) => message.updates.flatMap((update) => update.values))
+    .flatMap((message) =>
+      message.updates.flatMap((update) => update.values || []),
+    )
     .filter((value) => value.path === "notifications.navigation.gnss.integrity");
   const alarms = notificationValues.filter((item) => item.value?.state === "alarm");
 
@@ -1058,7 +1109,9 @@ test("suppresses GPS integrity notifications when alerts are disabled", async ()
   plugin.stop();
 
   const notificationValues = messages
-    .flatMap((message) => message.updates.flatMap((update) => update.values))
+    .flatMap((message) =>
+      message.updates.flatMap((update) => update.values || []),
+    )
     .filter((value) => value.path === "notifications.navigation.gnss.integrity");
 
   assert.ok(notificationValues.length > 0);
@@ -1068,7 +1121,9 @@ test("suppresses GPS integrity notifications when alerts are disabled", async ()
 function valuesFromUpdate(message) {
   return Object.assign(
     {},
-    ...message.updates.flatMap((update) => update.values).map((item) => ({ [item.path]: item.value })),
+    ...message.updates
+      .flatMap((update) => update.values || [])
+      .map((item) => ({ [item.path]: item.value })),
   );
 }
 

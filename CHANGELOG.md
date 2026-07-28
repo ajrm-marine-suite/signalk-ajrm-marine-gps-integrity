@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.2
+
+- Publish Signal K metadata for trusted SOG (`m/s`), true COG and heading
+  (`rad`), and dead-reckoning distance/time projections (`m` and `s`).
+  Numeric values are unchanged; this fixes unit discovery for the Signal K
+  Data Browser and other interoperable clients.
+
 ## 0.6.1
 
 - Consume AJRM Marine Navigation Reference schema v1 when available and retain

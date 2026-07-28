@@ -101,6 +101,21 @@ Apps that want a filtered navigation feed can subscribe to:
 - `vessels.self.plugins.ajrmMarineGpsIntegrity.counters.degradedSignals`
 - `vessels.self.plugins.ajrmMarineGpsIntegrity.counters.drDiscrepancies`
 
+The plugin publishes Signal K metadata for its numeric projection paths:
+
+| Projection | Signal K unit |
+| --- | --- |
+| `trusted.speedOverGround` | `m/s` |
+| `trusted.courseOverGroundTrue` | `rad` |
+| `trusted.headingTrue` | `rad` |
+| `deadReckoning.*.uncertaintyRadiusMeters` | `m` |
+| `deadReckoning.*.ageSeconds` | `s` |
+| `deadReckoning.integrity.realignIntervalSeconds` | `s` |
+
+In particular, `trusted.headingTrue` has always carried a Signal K true-heading
+number in radians. The added `meta.units: "rad"` makes that existing contract
+discoverable; it does not convert or otherwise change the numeric value.
+
 When a current GPS fix is accepted, `trusted.position` carries that fix. When
 GPS is lost or rejected, `trusted.accepted` is false and the trusted position is
 cleared so consumers do not accidentally use stale GPS as live position.
@@ -169,10 +184,18 @@ vector when the water-speed log is unavailable, but that path is labelled
 GPS-dependent and is never used as integrity evidence. Future releases can add
 longer evidence windows and chart/depth cross-checks.
 
+> This software is Alpha Release and has not been tested in live environments
+> and must not be relied upon for navigation or safety. The Authors do not
+> accept any responsibility for loss or damage as a result of using this
+> software.
 
 ## Public Beta
 
 GNSS integrity monitor for AJRM Marine Suite.
+
+AJRM Marine GPS Integrity is authored and maintained by Anthony McDonald, with
+assistance from William McAusland. It builds on the Signal K project and the
+work of Signal K plugin authors.
 
 Development assistance: OpenAI Codex helped with code generation, refactoring, and automated testing during the beta development cycle.
 ## License and commercial use

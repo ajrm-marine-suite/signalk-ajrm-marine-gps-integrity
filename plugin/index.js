@@ -57,6 +57,78 @@ const PROJECTION_PATHS = [
   `${COUNTERS_PREFIX}.degradedSignals`,
   `${COUNTERS_PREFIX}.drDiscrepancies`,
 ];
+const PROJECTION_METADATA = [
+  {
+    path: `${TRUSTED_PREFIX}.speedOverGround`,
+    value: {
+      units: "m/s",
+      description: "Speed over ground associated with the currently trusted GPS fix.",
+    },
+  },
+  {
+    path: `${TRUSTED_PREFIX}.courseOverGroundTrue`,
+    value: {
+      units: "rad",
+      description: "True course over ground associated with the currently trusted GPS fix.",
+    },
+  },
+  {
+    path: `${TRUSTED_PREFIX}.headingTrue`,
+    value: {
+      units: "rad",
+      description: "True heading associated with the currently trusted GPS fix.",
+    },
+  },
+  {
+    path: `${DEAD_RECKONING_PREFIX}.uncertaintyRadiusMeters`,
+    value: {
+      units: "m",
+      description: "Compatibility dead-reckoning uncertainty radius.",
+    },
+  },
+  {
+    path: `${DEAD_RECKONING_PREFIX}.ageSeconds`,
+    value: {
+      units: "s",
+      description: "Compatibility dead-reckoning age.",
+    },
+  },
+  {
+    path: `${DEAD_RECKONING_PREFIX}.operational.uncertaintyRadiusMeters`,
+    value: {
+      units: "m",
+      description: "Operational dead-reckoning uncertainty radius.",
+    },
+  },
+  {
+    path: `${DEAD_RECKONING_PREFIX}.operational.ageSeconds`,
+    value: {
+      units: "s",
+      description: "Operational dead-reckoning age.",
+    },
+  },
+  {
+    path: `${DEAD_RECKONING_PREFIX}.integrity.uncertaintyRadiusMeters`,
+    value: {
+      units: "m",
+      description: "Independent integrity dead-reckoning uncertainty radius.",
+    },
+  },
+  {
+    path: `${DEAD_RECKONING_PREFIX}.integrity.ageSeconds`,
+    value: {
+      units: "s",
+      description: "Independent integrity dead-reckoning age.",
+    },
+  },
+  {
+    path: `${DEAD_RECKONING_PREFIX}.integrity.realignIntervalSeconds`,
+    value: {
+      units: "s",
+      description: "Independent integrity dead-reckoning realignment interval.",
+    },
+  },
+];
 
 module.exports = function ajrmMarineGpsIntegrity(app) {
   const plugin = {};
@@ -124,6 +196,7 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
 
   plugin.start = (pluginOptions = {}) => {
     options = normalizeOptions(pluginOptions);
+    publishProjectionMetadata();
     latestState = null;
     lastNotificationSignature = null;
     activeNotificationKey = null;
@@ -218,6 +291,16 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
       (error) => app.error?.(`[${PLUGIN_ID}] subscription error: ${error}`),
       handleLoggerPlaybackDelta,
     );
+  }
+
+  function publishProjectionMetadata() {
+    app.handleMessage?.(PLUGIN_ID, {
+      updates: [
+        {
+          meta: PROJECTION_METADATA,
+        },
+      ],
+    });
   }
 
   function handleLoggerPlaybackDelta(delta) {
