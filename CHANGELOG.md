@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.3
+
+- Consume explicit GNSS fix status and quality evidence from Navigation
+  Reference even when that provider withholds position and ground track.
+- Preserve `explicitGpsUnavailable`, no-fix wording, satellite count, HDOP, and
+  evidence timestamps across the provider boundary instead of reducing an
+  explicit receiver failure to generic missing-position state.
+
 ## 0.6.2
 
 - Publish Signal K metadata for trusted SOG (`m/s`), true COG and heading

@@ -709,6 +709,12 @@ function sampleFromSignalK(app) {
   const candidateReferenceSpeed = referenceMeasurement(
     navigationReference?.groundTrack?.speedOverGround,
   );
+  const referenceGnss =
+    navigationReference?.gnss &&
+    typeof navigationReference.gnss === "object" &&
+    !Array.isArray(navigationReference.gnss)
+      ? navigationReference.gnss
+      : null;
   const providerAvailable = Boolean(navigationReference);
   const referenceGnssCoherent = Boolean(
     navigationReference?.groundTrack?.coherent === true &&
@@ -742,6 +748,7 @@ function sampleFromSignalK(app) {
     ? referencePosition?.source ||
       referenceCourse?.source ||
       referenceSpeed?.source ||
+      referenceGnss?.source ||
       null
     : chooseNavigationSource(gnssEntries);
   const position = providerAvailable
@@ -786,10 +793,20 @@ function sampleFromSignalK(app) {
   const methodQualityTimestampMs = sourceTimestamp(methodQualityEntry, source);
   const satellitesTimestampMs = sourceTimestamp(satellitesEntry, source);
   const hdopTimestampMs = sourceTimestamp(hdopEntry, source);
-  const methodQuality = readEntryValue(methodQualityEntry, source);
-  const satellites = readEntryValue(satellitesEntry, source);
-  const hdop = readEntryValue(hdopEntry, source);
-  const explicitGpsUnavailable = explicitNoGps(methodQuality, satellites);
+  const referenceGnssTimestampMs = timestampNumber(referenceGnss?.timestamp);
+  const methodQuality = providerAvailable && referenceGnss
+    ? referenceGnss.methodQuality
+    : readEntryValue(methodQualityEntry, source);
+  const satellites = providerAvailable && referenceGnss
+    ? referenceGnss.satellites
+    : readEntryValue(satellitesEntry, source);
+  const hdop = providerAvailable && referenceGnss
+    ? referenceGnss.horizontalDilution
+    : readEntryValue(hdopEntry, source);
+  const explicitGpsUnavailable = providerAvailable && referenceGnss
+    ? referenceGnss.explicitUnavailable === true ||
+      referenceGnss.fixValid === false
+    : explicitNoGps(methodQuality, satellites);
   const headingEntry = getSelfEntry(app, "navigation.headingTrue");
   const speedThroughWaterEntry = getSelfEntry(app, "navigation.speedThroughWater");
   const rawHeadingSource = defaultEntrySource(headingEntry);
@@ -849,17 +866,32 @@ function sampleFromSignalK(app) {
     currentTimestamp: currentEvidence?.timestamp || null,
     currentEvidence,
     hdop,
-    hdopTimestamp: hdopTimestampMs ? new Date(hdopTimestampMs).toISOString() : null,
+    hdopTimestamp: referenceGnssTimestampMs
+      ? new Date(referenceGnssTimestampMs).toISOString()
+      : hdopTimestampMs
+        ? new Date(hdopTimestampMs).toISOString()
+        : null,
     methodQuality,
-    methodQualityTimestamp: methodQualityTimestampMs ? new Date(methodQualityTimestampMs).toISOString() : null,
+    methodQualityTimestamp: referenceGnssTimestampMs
+      ? new Date(referenceGnssTimestampMs).toISOString()
+      : methodQualityTimestampMs
+        ? new Date(methodQualityTimestampMs).toISOString()
+        : null,
     satellites,
-    satellitesTimestamp: satellitesTimestampMs ? new Date(satellitesTimestampMs).toISOString() : null,
+    satellitesTimestamp: referenceGnssTimestampMs
+      ? new Date(referenceGnssTimestampMs).toISOString()
+      : satellitesTimestampMs
+        ? new Date(satellitesTimestampMs).toISOString()
+        : null,
     explicitGpsUnavailable,
     explicitGpsUnavailableTimestamp: Math.max(
-      methodQualityTimestampMs || 0,
-      satellitesTimestampMs || 0,
+      referenceGnssTimestampMs || methodQualityTimestampMs || 0,
+      referenceGnssTimestampMs || satellitesTimestampMs || 0,
     )
-      ? new Date(Math.max(methodQualityTimestampMs || 0, satellitesTimestampMs || 0)).toISOString()
+      ? new Date(Math.max(
+          referenceGnssTimestampMs || methodQualityTimestampMs || 0,
+          referenceGnssTimestampMs || satellitesTimestampMs || 0,
+        )).toISOString()
       : null,
     fixValid: position != null && !explicitGpsUnavailable,
     gnssProvenance: {

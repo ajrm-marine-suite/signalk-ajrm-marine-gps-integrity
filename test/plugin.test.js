@@ -656,6 +656,48 @@ test("explicit GNSS no-fix invalidates a cached position immediately", () => {
   assert.equal(sample.fixValid, false);
 });
 
+test("explicit Navigation Reference no-fix remains visible without a position", () => {
+  const timestamp = "2026-07-02T18:30:03.000Z";
+  const paths = {
+    "plugins.ajrmMarineNavigationReference.state": {
+      value: {
+        contract: "ajrm-marine-navigation-reference",
+        schemaVersion: 1,
+        updatedAt: timestamp,
+        position: null,
+        groundTrack: null,
+        gnss: {
+          source: "gps.one",
+          sourceKind: "gnss",
+          timestamp,
+          ageMs: 0,
+          gpsDependent: true,
+          fixValid: false,
+          explicitUnavailable: true,
+          rejectionReason: "gnss-method-reports-no-valid-fix",
+          methodQuality: "no GPS",
+          satellites: 0,
+          horizontalDilution: null,
+          evidence: "same-source-gnss-quality",
+        },
+      },
+    },
+  };
+  const sample = pluginFactory._private.sampleFromSignalK({
+    getSelfPath(path) {
+      return paths[path];
+    },
+  });
+
+  assert.equal(sample.source, "gps.one");
+  assert.equal(sample.position, undefined);
+  assert.equal(sample.methodQuality, "no GPS");
+  assert.equal(sample.satellites, 0);
+  assert.equal(sample.explicitGpsUnavailable, true);
+  assert.equal(sample.explicitGpsUnavailableTimestamp, timestamp);
+  assert.equal(sample.fixValid, false);
+});
+
 test("reads preferred distance unit from Signal K metadata", () => {
   assert.equal(pluginFactory._private.preferredDistanceUnit({
     getMetadata(path) {
