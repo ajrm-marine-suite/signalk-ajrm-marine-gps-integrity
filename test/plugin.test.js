@@ -1133,6 +1133,44 @@ test("publishes continuous lost GPS as one stable active notification", async ()
   );
 });
 
+test("suppresses replay startup GPS loss until warm-up receives its first fix", async () => {
+  const messages = [];
+  const plugin = pluginFactory({
+    getSelfPath(path) {
+      if (path === "navigation.position") return { value: null };
+      if (path === "plugins.ajrmMarineLogger.playback") {
+        return {
+          playing: true,
+          warmupActive: true,
+          voyageFileName: "voyage-sparse-gps.zip",
+          sourceKind: "voyages",
+          capturedAt: "2026-07-17T12:11:28.577Z",
+          rate: 1,
+        };
+      }
+      return undefined;
+    },
+    handleMessage(_pluginId, message) {
+      messages.push(message);
+    },
+    setPluginStatus() {},
+  });
+
+  plugin.start({ updateIntervalMs: 500 });
+  await new Promise((resolve) => setTimeout(resolve, 560));
+  plugin.stop();
+
+  const notificationValues = messages
+    .flatMap((message) =>
+      message.updates.flatMap((update) => update.values || []),
+    )
+    .filter((value) => value.path === "notifications.navigation.gnss.integrity");
+  assert.equal(
+    notificationValues.some((item) => item.value?.state === "alarm"),
+    false,
+  );
+});
+
 test("suppresses GPS integrity notifications when alerts are disabled", async () => {
   const messages = [];
   const plugin = pluginFactory({

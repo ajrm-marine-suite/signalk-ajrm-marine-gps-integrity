@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.6.4
+
+- Calculate implied GPS speed between position measurement timestamps instead
+  of one-second evaluator timestamps, so plausible movement across a sparse
+  GNSS stream is not rejected as a position jump.
+- Keep measurement time separate from acceptance time, avoid counting repeated
+  evaluations of one cached fix as new fixes, and propagate operational DR
+  between genuinely new measurements.
+- Raise the default GPS-loss age to 30 seconds, label valid positions older
+  than 10 seconds as `delayed`, and retain immediate loss for explicit no-fix
+  evidence.
+- Suppress startup GPS-loss notification delivery while Logger replay is still
+  warming up and no first replay fix has been received.
+
 ## 0.6.3
 
 - Consume explicit GNSS fix status and quality evidence from Navigation

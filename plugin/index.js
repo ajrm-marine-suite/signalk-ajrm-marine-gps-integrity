@@ -144,6 +144,7 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
   let activeReplayKey = null;
   let activeReplayRate = 1;
   let lastReplayClock = null;
+  let activeReplayWarmup = false;
 
   plugin.id = PLUGIN_ID;
   plugin.name = "AJRM Marine GPS Integrity";
@@ -181,7 +182,24 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
         title: "Dead-reckoning alarm discrepancy",
         default: 150,
       },
-      gpsLostSeconds: { type: "number", title: "GPS lost age", default: 15 },
+      gpsDelayedSeconds: {
+        type: "number",
+        title: "GPS delayed age",
+        description:
+          "A valid position older than this remains usable but is explicitly labelled delayed.",
+        default: 10,
+        minimum: 1,
+        maximum: 300,
+      },
+      gpsLostSeconds: {
+        type: "number",
+        title: "GPS lost age",
+        description:
+          "Declare GPS lost only after the latest valid position exceeds this age. Explicit no-fix evidence remains immediate.",
+        default: 30,
+        minimum: 2,
+        maximum: 600,
+      },
       integrityDrRealignSeconds: {
         type: "number",
         title: "Spoofing check reset interval",
@@ -319,6 +337,7 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
       activeReplayKey = null;
       activeReplayRate = 1;
       lastReplayClock = null;
+      activeReplayWarmup = false;
       return;
     }
     const replayKey = [
@@ -333,6 +352,7 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
       lastReplayClock = null;
     }
     activeReplayRate = replayRateFromPlaybackValue(value);
+    activeReplayWarmup = value.warmupActive === true;
   }
 
   function resetRuntimeStateForReplay() {
@@ -474,7 +494,12 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
       { path: STATE_PATH, value: latestState },
       ...navigationProjectionValues(latestState),
     ]);
-    publishNotification(notificationValue(latestState));
+    const replayAwaitingFirstFix =
+      activeReplayWarmup &&
+      !latestState?.lastTrustedFix?.position;
+    publishNotification(
+      replayAwaitingFirstFix ? null : notificationValue(latestState),
+    );
   }
 
   function updateReplayBoundaryFromSignalK() {
@@ -1211,6 +1236,7 @@ function normalizeOptions(value = {}) {
     warningDrDiscrepancyMeters: value.warningDrDiscrepancyMeters,
     alarmDrDiscrepancyMeters: value.alarmDrDiscrepancyMeters,
     gpsLostSeconds: value.gpsLostSeconds,
+    gpsDelayedSeconds: value.gpsDelayedSeconds,
     integrityDrRealignSeconds: clampNumber(value.integrityDrRealignSeconds, 60, 86400, 300),
     distanceDisplayUnit: value.distanceDisplayUnit,
   };

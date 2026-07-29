@@ -14,6 +14,12 @@ function evaluateNavigationIntegrity(sample, previousState = null, options = {})
   const nowMs = timestampMs(sample.timestamp) || Date.now();
   const position = normalizePosition(sample.position);
   const positionTimestampMs = timestampMs(sample.positionTimestamp);
+  const positionMeasurementMs = position
+    ? positionTimestampMs || nowMs
+    : null;
+  const positionMeasurementTimestamp = positionMeasurementMs
+    ? new Date(positionMeasurementMs).toISOString()
+    : null;
   const positionAgeSeconds = position && positionTimestampMs
     ? Math.max(0, (nowMs - positionTimestampMs) / 1000)
     : null;
@@ -52,6 +58,7 @@ function evaluateNavigationIntegrity(sample, previousState = null, options = {})
   let pendingGpsCandidate = previousState?.pendingGpsCandidate || null;
   let resetBaselineFromCandidate = false;
   let positionJumpRejected = false;
+  let positionJumpEvent = false;
   let gpsTrackOverSpeed = false;
   let drDiscrepancyActive = false;
   const receivedGpsTimestamp = position
@@ -108,14 +115,49 @@ function evaluateNavigationIntegrity(sample, previousState = null, options = {})
       }
     : independentMotionSample;
 
-  if (fixValid && lastTrustedFix?.position) {
-    const elapsedSeconds = Math.max(0.001, (nowMs - timestampMs(lastTrustedFix.timestamp)) / 1000);
+  const lastTrustedMeasurementMs = trustedFixMeasurementMs(lastTrustedFix);
+  const newPositionMeasurement = Boolean(
+    fixValid &&
+      positionMeasurementMs &&
+      (!lastTrustedMeasurementMs ||
+        positionMeasurementMs > lastTrustedMeasurementMs),
+  );
+  const repeatedPendingMeasurement = Boolean(
+    newPositionMeasurement &&
+      pendingGpsCandidate?.position &&
+      timestampMs(
+        pendingGpsCandidate.lastTimestamp ||
+          pendingGpsCandidate.timestamp,
+      ) === positionMeasurementMs,
+  );
+  const newObservedPositionMeasurement =
+    newPositionMeasurement && !repeatedPendingMeasurement;
+
+  if (repeatedPendingMeasurement) {
+    trust = maxTrust(trust, "suspect");
+    reasons.push("Previously rejected GPS position is awaiting a new measurement.");
+    positionJumpRejected = true;
+  } else if (newPositionMeasurement && lastTrustedFix?.position) {
+    const elapsedSeconds = Math.max(
+      0.001,
+      (positionMeasurementMs - lastTrustedMeasurementMs) / 1000,
+    );
     const distance = distanceMeters(lastTrustedFix.position, position);
     const impliedSpeed = distance / elapsedSeconds;
     const maxSpeedMps = settings.maxBoatSpeedKnots * settings.replayTimeScale * KNOTS_TO_MPS;
     if (impliedSpeed > maxSpeedMps) {
-      const updatedCandidate = updateOverSpeedCandidate(pendingGpsCandidate, position, nowMs, settings);
-      const candidateAccepted = isPlausibleContinuation(pendingGpsCandidate, position, nowMs, settings);
+      const updatedCandidate = updateOverSpeedCandidate(
+        pendingGpsCandidate,
+        position,
+        positionMeasurementMs,
+        settings,
+      );
+      const candidateAccepted = isPlausibleContinuation(
+        pendingGpsCandidate,
+        position,
+        positionMeasurementMs,
+        settings,
+      );
       if (updatedCandidate?.sustainedOverSpeed) {
         const speedKnots = updatedCandidate.trackSpeedMps * MPS_TO_KNOTS;
         trust = maxTrust(trust, "degraded");
@@ -135,9 +177,10 @@ function evaluateNavigationIntegrity(sample, previousState = null, options = {})
           `Position jump implies ${formatNumber(impliedSpeed * MPS_TO_KNOTS, 1)} knots over ground.`,
         );
         positionJumpRejected = true;
+        positionJumpEvent = true;
         pendingGpsCandidate = updatedCandidate || {
           position,
-          timestamp: new Date(nowMs).toISOString(),
+          timestamp: positionMeasurementTimestamp,
         };
       }
     }
@@ -209,19 +252,29 @@ function evaluateNavigationIntegrity(sample, previousState = null, options = {})
     }
   }
 
+  const acceptedNewGpsMeasurement = Boolean(
+    newPositionMeasurement &&
+      trust !== "suspect" &&
+      trust !== "lost" &&
+      !gpsTrackOverSpeed,
+  );
   if (fixValid && trust !== "suspect" && trust !== "lost" && !gpsTrackOverSpeed) {
     acceptedGps = true;
-    lastTrustedFix = {
-      position,
-      timestamp: new Date(nowMs).toISOString(),
-      hdop: Number.isFinite(hdop) ? hdop : null,
-      satellites: Number.isFinite(satellites) ? satellites : null,
-      source: sample.source || null,
-      provenance: sample.gnssProvenance || null,
-    };
+    if (acceptedNewGpsMeasurement || !lastTrustedFix?.position) {
+      lastTrustedFix = {
+        position,
+        timestamp: positionMeasurementTimestamp,
+        measurementTimestamp: positionMeasurementTimestamp,
+        acceptedAt: new Date(nowMs).toISOString(),
+        hdop: Number.isFinite(hdop) ? hdop : null,
+        satellites: Number.isFinite(satellites) ? satellites : null,
+        source: sample.source || null,
+        provenance: sample.gnssProvenance || null,
+      };
+    }
     const liveCurrent = currentSnapshotFromSample(rawMotionSample, nowMs);
     if (liveCurrent) lastTrustedCurrent = liveCurrent;
-    pendingGpsCandidate = null;
+    if (acceptedNewGpsMeasurement) pendingGpsCandidate = null;
   } else {
     motionSample = navigationSampleWithTrustedCurrent(rawMotionSample, previousState, {
       allowLiveCurrent: false,
@@ -230,7 +283,9 @@ function evaluateNavigationIntegrity(sample, previousState = null, options = {})
     });
   }
 
-  const ageSeconds = lastTrustedFix ? Math.max(0, (nowMs - timestampMs(lastTrustedFix.timestamp)) / 1000) : null;
+  const ageSeconds = lastTrustedFix
+    ? Math.max(0, (nowMs - trustedFixMeasurementMs(lastTrustedFix)) / 1000)
+    : null;
   if (ageSeconds !== null && ageSeconds > settings.gpsLostSeconds) {
     if (!fixValid) trust = maxTrust(trust, "lost");
     if (fixValid) {
@@ -246,7 +301,7 @@ function evaluateNavigationIntegrity(sample, previousState = null, options = {})
   }
 
   const shouldRealignIntegrity =
-    acceptedGps &&
+    acceptedNewGpsMeasurement &&
     position &&
     (!integrityDeadReckoning?.position ||
       !integrityDeadReckoning?.lastRealignedAt ||
@@ -263,7 +318,7 @@ function evaluateNavigationIntegrity(sample, previousState = null, options = {})
     );
   }
 
-  if (acceptedGps && position) {
+  if (acceptedNewGpsMeasurement && position) {
     operationalDeadReckoning = makeDrTrack({
       position,
       uncertaintyAgeSeconds: 0,
@@ -272,7 +327,7 @@ function evaluateNavigationIntegrity(sample, previousState = null, options = {})
       settings,
       trust,
       source: "gps-locked",
-      lastRealignedAt: new Date(nowMs).toISOString(),
+      lastRealignedAt: positionMeasurementTimestamp,
       realignIntervalSeconds: 0,
     });
   } else {
@@ -326,6 +381,9 @@ function evaluateNavigationIntegrity(sample, previousState = null, options = {})
   const state = notificationStateForTrust(trust);
   const counters = updateCounters(previousState?.counters, {
     acceptedGps,
+    acceptedNewGpsMeasurement,
+    rejectedMeasurementEvent:
+      newObservedPositionMeasurement && !acceptedGps,
     fixValid,
     trust,
     previousTrust: previousState?.trust || null,
@@ -334,6 +392,7 @@ function evaluateNavigationIntegrity(sample, previousState = null, options = {})
     previousDrDiscrepancy: previousState?.drDiscrepancyActive === true,
     hadTrustedFix: Boolean(previousState?.lastTrustedFix?.position),
     positionJumpRejected,
+    positionJumpEvent,
     gpsTrackOverSpeed,
     degradedSignal: (
       (Number.isFinite(hdop) && hdop > settings.maxHdop) ||
@@ -356,6 +415,13 @@ function evaluateNavigationIntegrity(sample, previousState = null, options = {})
       positionTimestamp: sample.positionTimestamp || null,
       lastReceivedPositionTimestamp: lastReceivedGpsTimestamp,
       positionAgeSeconds,
+      positionState: gpsPositionState({
+        position,
+        positionAgeSeconds,
+        explicitGpsUnavailable,
+        delayedSeconds: settings.gpsDelayedSeconds,
+        lostSeconds: settings.gpsLostSeconds,
+      }),
       hdop: Number.isFinite(hdop) ? hdop : null,
       satellites: Number.isFinite(satellites) ? satellites : null,
       explicitGpsUnavailable,
@@ -540,9 +606,11 @@ function updateCounters(previousCounters = {}, event) {
   };
   if (!countingStarted) return counters;
   counters.evaluations += 1;
-  if (event.acceptedGps) counters.acceptedFixes += 1;
-  if (!event.acceptedGps && event.fixValid) counters.rejectedFixes += 1;
-  if (event.positionJumpRejected) counters.positionJumps += 1;
+  if (event.acceptedNewGpsMeasurement) counters.acceptedFixes += 1;
+  if (event.rejectedMeasurementEvent && event.fixValid) {
+    counters.rejectedFixes += 1;
+  }
+  if (event.positionJumpEvent) counters.positionJumps += 1;
   if (isLostEventStart(event)) counters.lostFixes += 1;
   if (event.degradedSignal && !event.previousDegradedSignal) counters.degradedSignals += 1;
   if (event.drDiscrepancy && !event.previousDrDiscrepancy) counters.drDiscrepancies += 1;
@@ -600,6 +668,29 @@ function updateOverSpeedCandidate(candidate, position, nowMs, settings) {
       coherentOverSpeed &&
       ((Number(candidate.overSpeedSamples) || 1) + 1) >= settings.overSpeedConfirmationSamples,
   };
+}
+
+function trustedFixMeasurementMs(fix) {
+  if (!fix) return 0;
+  return timestampMs(
+    fix.measurementTimestamp ||
+      fix.positionTimestamp ||
+      fix.timestamp,
+  );
+}
+
+function gpsPositionState({
+  position,
+  positionAgeSeconds,
+  explicitGpsUnavailable,
+  delayedSeconds,
+  lostSeconds,
+}) {
+  if (explicitGpsUnavailable) return "lost";
+  if (!position || positionAgeSeconds === null) return "missing";
+  if (positionAgeSeconds > lostSeconds) return "lost";
+  if (positionAgeSeconds > delayedSeconds) return "delayed";
+  return "fresh";
 }
 
 function freshNavigationSample(sample, nowMs, settings) {
@@ -1195,13 +1286,18 @@ function trackThroughWaterBearing(sample) {
 }
 
 function normalizeOptions(value = {}) {
+  const gpsLostSeconds = clampNumber(value.gpsLostSeconds, 2, 600, 30);
   return {
     maxBoatSpeedKnots: clampNumber(value.maxBoatSpeedKnots, 3, 80, 30),
     maxHdop: clampNumber(value.maxHdop, 0.5, 50, 4),
     minSatellites: clampNumber(value.minSatellites, 0, 20, 4),
     warningDrDiscrepancyMeters: clampNumber(value.warningDrDiscrepancyMeters, 5, 5000, 50),
     alarmDrDiscrepancyMeters: clampNumber(value.alarmDrDiscrepancyMeters, 10, 10000, 150),
-    gpsLostSeconds: clampNumber(value.gpsLostSeconds, 2, 600, 15),
+    gpsDelayedSeconds: Math.min(
+      gpsLostSeconds,
+      clampNumber(value.gpsDelayedSeconds, 1, 300, 10),
+    ),
+    gpsLostSeconds,
     baseUncertaintyMeters: clampNumber(value.baseUncertaintyMeters, 1, 1000, 10),
     degradedBaseUncertaintyMeters: clampNumber(value.degradedBaseUncertaintyMeters, 5, 5000, 40),
     uncertaintyGrowthMetersPerSecond: clampNumber(value.uncertaintyGrowthMetersPerSecond, 0.1, 50, 1.5),

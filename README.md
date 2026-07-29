@@ -3,6 +3,12 @@
 Signal K plugin and small status webapp for monitoring GPS/GNSS trust and
 publishing a dead-reckoning state for AJRM Marine apps.
 
+`v0.6.4` tolerates the sparse but coherent position cadence observed in real
+voyages. The default GPS-loss threshold is 30 seconds; positions older than 10
+seconds are explicitly labelled `delayed`, while an explicit receiver no-fix
+still takes effect immediately. Position-jump speed is calculated between GPS
+measurement timestamps, not between the plugin's one-second evaluations.
+
 `v0.5.14` makes lost-GPS announcements report when a GPS position was last
 received, rather than when the last trusted GPS fix was accepted. This keeps
 outage wording sensible after a period of suspect/rejected GPS fixes.

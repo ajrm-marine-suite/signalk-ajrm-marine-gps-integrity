@@ -100,6 +100,91 @@ test("flags an impossible position jump as suspect", () => {
   assert.match(second.diagnostics.decision.reasons.join(" "), /Position jump/);
 });
 
+test("uses GPS measurement time across a sparse but plausible position stream", () => {
+  const baseMs = Date.parse("2026-07-29T12:00:00.000Z");
+  const timestamp = (seconds) =>
+    new Date(baseMs + seconds * 1000).toISOString();
+  const start = { latitude: 56, longitude: -5 };
+  let state = evaluateNavigationIntegrity({
+    timestamp: timestamp(0),
+    positionTimestamp: timestamp(0),
+    position: start,
+  });
+
+  for (let seconds = 1; seconds <= 5; seconds += 1) {
+    state = evaluateNavigationIntegrity({
+      timestamp: timestamp(seconds),
+      positionTimestamp: timestamp(0),
+      position: start,
+    }, state);
+  }
+
+  state = evaluateNavigationIntegrity({
+    timestamp: timestamp(6),
+    positionTimestamp: timestamp(6),
+    position: {
+      latitude: 56 + 18 / 111320,
+      longitude: -5,
+    },
+  }, state);
+
+  assert.equal(state.trust, "normal");
+  assert.equal(state.acceptedGps, true);
+  assert.equal(state.counters.acceptedFixes, 2);
+  assert.equal(state.counters.positionJumps, 0);
+  assert.equal(state.lastTrustedFix.measurementTimestamp, timestamp(6));
+  assert.equal(state.lastTrustedFix.acceptedAt, timestamp(6));
+  assert.doesNotMatch(state.reasons.join(" "), /Position jump/);
+});
+
+test("does not count repeated evaluation of one rejected measurement as new jumps", () => {
+  const first = evaluateNavigationIntegrity({
+    timestamp: "2026-07-29T12:00:00.000Z",
+    positionTimestamp: "2026-07-29T12:00:00.000Z",
+    position: { latitude: 56, longitude: -5 },
+  });
+  const jumped = evaluateNavigationIntegrity({
+    timestamp: "2026-07-29T12:00:01.000Z",
+    positionTimestamp: "2026-07-29T12:00:01.000Z",
+    position: { latitude: 56.1, longitude: -5 },
+  }, first);
+  const repeated = evaluateNavigationIntegrity({
+    timestamp: "2026-07-29T12:00:02.000Z",
+    positionTimestamp: "2026-07-29T12:00:01.000Z",
+    position: { latitude: 56.1, longitude: -5 },
+  }, jumped);
+
+  assert.equal(repeated.trust, "suspect");
+  assert.equal(repeated.counters.positionJumps, 1);
+  assert.equal(repeated.counters.rejectedFixes, 1);
+  assert.match(repeated.reasons.join(" "), /awaiting a new measurement/);
+});
+
+test("labels an aged valid position delayed before the 30-second lost threshold", () => {
+  const first = evaluateNavigationIntegrity({
+    timestamp: "2026-07-29T12:00:00.000Z",
+    positionTimestamp: "2026-07-29T12:00:00.000Z",
+    position: { latitude: 56, longitude: -5 },
+  });
+  const delayed = evaluateNavigationIntegrity({
+    timestamp: "2026-07-29T12:00:11.000Z",
+    positionTimestamp: "2026-07-29T12:00:00.000Z",
+    position: { latitude: 56, longitude: -5 },
+  }, first);
+  const lost = evaluateNavigationIntegrity({
+    timestamp: "2026-07-29T12:00:31.000Z",
+    positionTimestamp: "2026-07-29T12:00:00.000Z",
+    position: { latitude: 56, longitude: -5 },
+  }, delayed);
+
+  assert.equal(delayed.trust, "normal");
+  assert.equal(delayed.gps.positionState, "delayed");
+  assert.equal(delayed.gps.positionAgeSeconds, 11);
+  assert.equal(lost.trust, "lost");
+  assert.equal(lost.gps.positionState, "lost");
+  assert.match(lost.reasons.join(" "), /GPS position is stale/);
+});
+
 test("accepts a smooth shifted GPS track as a degraded baseline reset", () => {
   const first = evaluateNavigationIntegrity({
     timestamp: "2026-06-22T12:00:00.000Z",
