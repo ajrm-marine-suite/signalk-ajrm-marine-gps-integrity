@@ -196,9 +196,18 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
         title: "GPS lost age",
         description:
           "Declare GPS lost only after the latest valid position exceeds this age. Explicit no-fix evidence remains immediate.",
-        default: 30,
+        default: 60,
         minimum: 2,
         maximum: 600,
+      },
+      coincidentFixWindowMs: {
+        type: "number",
+        title: "Coincident GPS fix window",
+        description:
+          "Treat small position differences received within this window as duplicate reports of the same GNSS measurement epoch (for example NMEA 2000 PGNs 129025 and 129029), not vessel movement.",
+        default: 250,
+        minimum: 50,
+        maximum: 2000,
       },
       integrityDrRealignSeconds: {
         type: "number",
@@ -1237,6 +1246,7 @@ function normalizeOptions(value = {}) {
     alarmDrDiscrepancyMeters: value.alarmDrDiscrepancyMeters,
     gpsLostSeconds: value.gpsLostSeconds,
     gpsDelayedSeconds: value.gpsDelayedSeconds,
+    coincidentFixWindowMs: value.coincidentFixWindowMs,
     integrityDrRealignSeconds: clampNumber(value.integrityDrRealignSeconds, 60, 86400, 300),
     distanceDisplayUnit: value.distanceDisplayUnit,
   };

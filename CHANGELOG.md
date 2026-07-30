@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.6.5
+
+- Coalesce small, near-simultaneous position differences from duplicate GNSS
+  reports of one measurement epoch, such as NMEA 2000 PGNs 129025 and 129029,
+  instead of interpreting their millisecond spacing as impossible boat speed.
+- Continue to reject large near-simultaneous jumps and expose the configurable
+  coincidence window in plugin settings and diagnostics.
+- Raise the default GPS-loss age from 30 to 60 seconds for the sparse fixes
+  observed on a busy real NMEA 2000 network. Delayed status at 10 seconds and
+  immediate explicit no-fix handling are unchanged.
+
 ## 0.6.4
 
 - Calculate implied GPS speed between position measurement timestamps instead

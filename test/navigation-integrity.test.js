@@ -137,6 +137,47 @@ test("uses GPS measurement time across a sparse but plausible position stream", 
   assert.doesNotMatch(state.reasons.join(" "), /Position jump/);
 });
 
+test("coalesces near-simultaneous 129025 and 129029-style positions from one GNSS epoch", () => {
+  const first = evaluateNavigationIntegrity({
+    timestamp: "2026-07-17T14:10:01.145Z",
+    positionTimestamp: "2026-07-17T14:10:01.145Z",
+    source: "YDEN.c078c3001ca4fe77",
+    position: { longitude: -5.6764784, latitude: 55.8485696 },
+  });
+  const second = evaluateNavigationIntegrity({
+    timestamp: "2026-07-17T14:10:01.176Z",
+    positionTimestamp: "2026-07-17T14:10:01.176Z",
+    source: "YDEN.c078c3001ca4fe77",
+    position: {
+      longitude: -5.6764783159934975,
+      latitude: 55.84856956943729,
+    },
+  }, first);
+
+  assert.equal(second.trust, "normal");
+  assert.equal(second.acceptedGps, true);
+  assert.equal(second.counters.positionJumps, 0);
+  assert.equal(second.lastTrustedFix.measurementTimestamp, "2026-07-17T14:10:01.176Z");
+  assert.doesNotMatch(second.reasons.join(" "), /Position jump/);
+});
+
+test("still rejects a large near-simultaneous position jump", () => {
+  const first = evaluateNavigationIntegrity({
+    timestamp: "2026-07-17T14:10:01.145Z",
+    positionTimestamp: "2026-07-17T14:10:01.145Z",
+    position: { longitude: -5.6764784, latitude: 55.8485696 },
+  });
+  const jumped = evaluateNavigationIntegrity({
+    timestamp: "2026-07-17T14:10:01.176Z",
+    positionTimestamp: "2026-07-17T14:10:01.176Z",
+    position: { longitude: -5.6764784, latitude: 55.8495696 },
+  }, first);
+
+  assert.equal(jumped.trust, "suspect");
+  assert.equal(jumped.acceptedGps, false);
+  assert.equal(jumped.counters.positionJumps, 1);
+});
+
 test("does not count repeated evaluation of one rejected measurement as new jumps", () => {
   const first = evaluateNavigationIntegrity({
     timestamp: "2026-07-29T12:00:00.000Z",
@@ -160,7 +201,7 @@ test("does not count repeated evaluation of one rejected measurement as new jump
   assert.match(repeated.reasons.join(" "), /awaiting a new measurement/);
 });
 
-test("labels an aged valid position delayed before the 30-second lost threshold", () => {
+test("labels an aged valid position delayed before the 60-second lost threshold", () => {
   const first = evaluateNavigationIntegrity({
     timestamp: "2026-07-29T12:00:00.000Z",
     positionTimestamp: "2026-07-29T12:00:00.000Z",
@@ -172,7 +213,7 @@ test("labels an aged valid position delayed before the 30-second lost threshold"
     position: { latitude: 56, longitude: -5 },
   }, first);
   const lost = evaluateNavigationIntegrity({
-    timestamp: "2026-07-29T12:00:31.000Z",
+    timestamp: "2026-07-29T12:01:01.000Z",
     positionTimestamp: "2026-07-29T12:00:00.000Z",
     position: { latitude: 56, longitude: -5 },
   }, delayed);

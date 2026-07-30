@@ -145,7 +145,11 @@ function evaluateNavigationIntegrity(sample, previousState = null, options = {})
     const distance = distanceMeters(lastTrustedFix.position, position);
     const impliedSpeed = distance / elapsedSeconds;
     const maxSpeedMps = settings.maxBoatSpeedKnots * settings.replayTimeScale * KNOTS_TO_MPS;
-    if (impliedSpeed > maxSpeedMps) {
+    const coincidentFix =
+      (!lastTrustedFix.source || !sample.source || lastTrustedFix.source === sample.source) &&
+      positionMeasurementMs - lastTrustedMeasurementMs <= settings.coincidentFixWindowMs &&
+      distance <= settings.positionNoiseAllowanceMeters;
+    if (impliedSpeed > maxSpeedMps && !coincidentFix) {
       const updatedCandidate = updateOverSpeedCandidate(
         pendingGpsCandidate,
         position,
@@ -571,6 +575,7 @@ function buildDiagnostics({
       alarmDrDiscrepancyMeters: settings.alarmDrDiscrepancyMeters,
       integrityDrRealignSeconds: settings.integrityDrRealignSeconds,
       positionNoiseAllowanceMeters: settings.positionNoiseAllowanceMeters,
+      coincidentFixWindowMs: settings.coincidentFixWindowMs,
       overSpeedConfirmationSamples: settings.overSpeedConfirmationSamples,
       overSpeedCoherenceMultiplier: settings.overSpeedCoherenceMultiplier,
       replayTimeScale: settings.replayTimeScale,
@@ -1286,7 +1291,7 @@ function trackThroughWaterBearing(sample) {
 }
 
 function normalizeOptions(value = {}) {
-  const gpsLostSeconds = clampNumber(value.gpsLostSeconds, 2, 600, 30);
+  const gpsLostSeconds = clampNumber(value.gpsLostSeconds, 2, 600, 60);
   return {
     maxBoatSpeedKnots: clampNumber(value.maxBoatSpeedKnots, 3, 80, 30),
     maxHdop: clampNumber(value.maxHdop, 0.5, 50, 4),
@@ -1303,6 +1308,7 @@ function normalizeOptions(value = {}) {
     uncertaintyGrowthMetersPerSecond: clampNumber(value.uncertaintyGrowthMetersPerSecond, 0.1, 50, 1.5),
     maxPropagationSeconds: clampNumber(value.maxPropagationSeconds, 1, 600, 30),
     positionNoiseAllowanceMeters: clampNumber(value.positionNoiseAllowanceMeters, 1, 200, 20),
+    coincidentFixWindowMs: clampNumber(value.coincidentFixWindowMs, 50, 2000, 250),
     overSpeedConfirmationSamples: clampNumber(value.overSpeedConfirmationSamples, 2, 20, 2),
     overSpeedCoherenceMultiplier: clampNumber(value.overSpeedCoherenceMultiplier, 1.2, 10, 3),
     minReliableStwMps: clampNumber(value.minReliableStwMps, 0, 2, 0.25),
