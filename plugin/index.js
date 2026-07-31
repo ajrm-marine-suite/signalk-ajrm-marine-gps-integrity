@@ -5,6 +5,9 @@ const { evaluateNavigationIntegrity } = require("./lib/navigation-integrity");
 
 const PLUGIN_ID = "signalk-ajrm-marine-gps-integrity";
 const LOGGER_PLAYBACK_PATH = "plugins.ajrmMarineLogger.playback";
+const AJRM_MARINE_LOGGER_API_REGISTRY = Symbol.for(
+  "mcdonaldajr.ajrmMarineLoggerApi",
+);
 const NAVIGATION_REFERENCE_PATH = "plugins.ajrmMarineNavigationReference.state";
 const STATE_PATH = "plugins.ajrmMarineGpsIntegrity.navigationIntegrity";
 const NOTIFICATION_PATH = "notifications.navigation.gnss.integrity";
@@ -145,6 +148,8 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
   let activeReplayRate = 1;
   let lastReplayClock = null;
   let activeReplayWarmup = false;
+  let activeReplayLogicalAt = null;
+  let replayTimestampMap = new Map();
 
   plugin.id = PLUGIN_ID;
   plugin.name = "AJRM Marine GPS Integrity";
@@ -232,6 +237,8 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
     activeReplayKey = null;
     activeReplayRate = 1;
     lastReplayClock = null;
+    activeReplayLogicalAt = null;
+    replayTimestampMap = new Map();
     if (options.enabled) {
       subscribeToLoggerPlayback();
       timer = setInterval(evaluateAndPublish, options.updateIntervalMs);
@@ -259,6 +266,8 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
     activeReplayKey = null;
     activeReplayRate = 1;
     lastReplayClock = null;
+    activeReplayLogicalAt = null;
+    replayTimestampMap.clear();
     publishValue(STATE_PATH, null);
     publishValues(PROJECTION_PATHS.map((path) => ({ path, value: null })));
     publishValue(NOTIFICATION_PATH, null);
@@ -347,6 +356,8 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
       activeReplayRate = 1;
       lastReplayClock = null;
       activeReplayWarmup = false;
+      activeReplayLogicalAt = null;
+      replayTimestampMap.clear();
       return;
     }
     const replayKey = [
@@ -359,9 +370,13 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
       resetRuntimeStateForReplay();
       activeReplayKey = replayKey;
       lastReplayClock = null;
+      replayTimestampMap.clear();
     }
     activeReplayRate = replayRateFromPlaybackValue(value);
     activeReplayWarmup = value.warmupActive === true;
+    activeReplayLogicalAt =
+      validIsoTimestamp(value.logicalCapturedAt) ||
+      validIsoTimestamp(value.capturedAt);
   }
 
   function resetRuntimeStateForReplay() {
@@ -492,7 +507,14 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
 
   function evaluateAndPublish() {
     updateReplayBoundaryFromSignalK();
-    const sample = sampleFromSignalK(app);
+    const rawSample = sampleFromSignalK(app);
+    const sample = activeReplayLogicalAt
+      ? logicalReplaySample(
+          rawSample,
+          activeReplayLogicalAt,
+          replayTimestampMap,
+        )
+      : rawSample;
     latestSample = sample;
     latestState = evaluateNavigationIntegrity(sample, latestState, {
       ...options,
@@ -512,6 +534,17 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
   }
 
   function updateReplayBoundaryFromSignalK() {
+    const loggerClock =
+      app.ajrmMarineLoggerApi?.playbackClock?.() ||
+      globalThis[AJRM_MARINE_LOGGER_API_REGISTRY]?.playbackClock?.();
+    if (loggerClock?.active) {
+      handleLoggerPlaybackValue({
+        ...getSelfPath(app, LOGGER_PLAYBACK_PATH),
+        ...loggerClock,
+        playing: true,
+      });
+      return;
+    }
     handleLoggerPlaybackValue(getSelfPath(app, LOGGER_PLAYBACK_PATH));
   }
 
@@ -524,6 +557,7 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
       alertsEnabled: options.alertsEnabled,
       integrityDrRealignSeconds: options.integrityDrRealignSeconds,
       replayTimeScale: activeReplayRate,
+      replayLogicalAt: activeReplayLogicalAt,
       statePath: `vessels.self.${STATE_PATH}`,
       notificationPath: `vessels.self.${NOTIFICATION_PATH}`,
       trustedPrefix: `vessels.self.${TRUSTED_PREFIX}`,
@@ -726,6 +760,46 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
     return "nmi";
   }
 };
+
+function validIsoTimestamp(value) {
+  return Number.isFinite(Date.parse(value)) ? new Date(Date.parse(value)).toISOString() : null;
+}
+
+function logicalReplaySample(sample, logicalAt, timestampMap = new Map()) {
+  const logicalTimestamp = validIsoTimestamp(logicalAt);
+  if (!logicalTimestamp || !sample || typeof sample !== "object") return sample;
+
+  function remap(value, path = "") {
+    if (Array.isArray(value)) {
+      return value.map((entry, index) => remap(entry, `${path}[${index}]`));
+    }
+    if (!value || typeof value !== "object") return value;
+    const result = {};
+    for (const [key, entry] of Object.entries(value)) {
+      const entryPath = path ? `${path}.${key}` : key;
+      if (
+        typeof entry === "string" &&
+        (key === "timestamp" || key.endsWith("Timestamp")) &&
+        Number.isFinite(Date.parse(entry))
+      ) {
+        if (entryPath === "timestamp") {
+          result[key] = logicalTimestamp;
+          continue;
+        }
+        const previous = timestampMap.get(entryPath);
+        if (!previous || previous.raw !== entry) {
+          timestampMap.set(entryPath, { raw: entry, logical: logicalTimestamp });
+        }
+        result[key] = timestampMap.get(entryPath).logical;
+        continue;
+      }
+      result[key] = remap(entry, entryPath);
+    }
+    return result;
+  }
+
+  return remap(sample);
+}
 
 function sampleFromSignalK(app) {
   const navigationReference = validNavigationReference(
@@ -1322,6 +1396,7 @@ module.exports._private = {
     return "nmi";
   },
   PROJECTION_PATHS,
+  logicalReplaySample,
   readEntryValue,
   sampleFromSignalK,
   unwrapSignalKValue,

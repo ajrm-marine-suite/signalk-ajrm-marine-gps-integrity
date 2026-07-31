@@ -4,6 +4,57 @@ const assert = require("node:assert/strict");
 const test = require("node:test");
 const pluginFactory = require("../plugin");
 
+test("replay-logical time freezes measurement age while playback is stalled", () => {
+  const timestampMap = new Map();
+  const raw = {
+    timestamp: "2026-07-31T06:00:00.000Z",
+    positionTimestamp: "2026-07-31T06:00:00.000Z",
+    gnssProvenance: {
+      position: { timestamp: "2026-07-31T06:00:00.000Z" },
+    },
+  };
+  const first = pluginFactory._private.logicalReplaySample(
+    raw,
+    "2026-07-17T12:00:00.000Z",
+    timestampMap,
+  );
+  const stalled = pluginFactory._private.logicalReplaySample(
+    { ...raw, timestamp: "2026-07-31T09:00:00.000Z" },
+    "2026-07-17T12:00:00.000Z",
+    timestampMap,
+  );
+  assert.equal(first.timestamp, "2026-07-17T12:00:00.000Z");
+  assert.equal(first.positionTimestamp, "2026-07-17T12:00:00.000Z");
+  assert.equal(stalled.timestamp, "2026-07-17T12:00:00.000Z");
+  assert.equal(stalled.positionTimestamp, "2026-07-17T12:00:00.000Z");
+  assert.equal(
+    stalled.gnssProvenance.position.timestamp,
+    "2026-07-17T12:00:00.000Z",
+  );
+});
+
+test("a new replay measurement receives the current logical replay time", () => {
+  const timestampMap = new Map();
+  pluginFactory._private.logicalReplaySample(
+    {
+      timestamp: "2026-07-31T06:00:00.000Z",
+      positionTimestamp: "2026-07-31T06:00:00.000Z",
+    },
+    "2026-07-17T12:00:00.000Z",
+    timestampMap,
+  );
+  const advanced = pluginFactory._private.logicalReplaySample(
+    {
+      timestamp: "2026-07-31T09:00:01.000Z",
+      positionTimestamp: "2026-07-31T09:00:01.000Z",
+    },
+    "2026-07-17T12:00:01.000Z",
+    timestampMap,
+  );
+  assert.equal(advanced.timestamp, "2026-07-17T12:00:01.000Z");
+  assert.equal(advanced.positionTimestamp, "2026-07-17T12:00:01.000Z");
+});
+
 test("samples wrapped Signal K self-path values", () => {
   const paths = {
     "navigation.position": { value: { latitude: 56, longitude: -5 }, timestamp: "2026-06-22T12:00:00.000Z" },

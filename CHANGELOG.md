@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.6
+
+- Evaluate replay measurements against Logger's logical replay clock so a
+  paused or starved replay cannot manufacture GPS-age alarms from wall time.
+- Remap newly observed replay measurement timestamps onto that logical clock,
+  preserving correct age and position-jump intervals even after a long host
+  stall.
+
 ## 0.6.5
 
 - Coalesce small, near-simultaneous position differences from duplicate GNSS
