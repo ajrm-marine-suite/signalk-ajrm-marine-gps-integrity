@@ -1189,13 +1189,12 @@ test("suppresses replay startup GPS loss until warm-up receives its first fix", 
   const plugin = pluginFactory({
     getSelfPath(path) {
       if (path === "navigation.position") return { value: null };
-      if (path === "plugins.ajrmMarineLogger.playback") {
+      if (path === "plugins.ajrmMarineCapture.playback") {
         return {
-          playing: true,
+          active: true,
           warmupActive: true,
-          voyageFileName: "voyage-sparse-gps.zip",
-          sourceKind: "voyages",
-          capturedAt: "2026-07-17T12:11:28.577Z",
+          fileName: "voyage-sparse-gps.zip",
+          replayOriginalAt: "2026-07-17T12:11:28.577Z",
           rate: 1,
         };
       }

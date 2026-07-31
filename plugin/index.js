@@ -4,10 +4,7 @@ const packageInfo = require("../package.json");
 const { evaluateNavigationIntegrity } = require("./lib/navigation-integrity");
 
 const PLUGIN_ID = "signalk-ajrm-marine-gps-integrity";
-const LOGGER_PLAYBACK_PATH = "plugins.ajrmMarineLogger.playback";
-const AJRM_MARINE_LOGGER_API_REGISTRY = Symbol.for(
-  "mcdonaldajr.ajrmMarineLoggerApi",
-);
+const CAPTURE_PLAYBACK_PATH = "plugins.ajrmMarineCapture.playback";
 const NAVIGATION_REFERENCE_PATH = "plugins.ajrmMarineNavigationReference.state";
 const STATE_PATH = "plugins.ajrmMarineGpsIntegrity.navigationIntegrity";
 const NOTIFICATION_PATH = "notifications.navigation.gnss.integrity";
@@ -240,7 +237,7 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
     activeReplayLogicalAt = null;
     replayTimestampMap = new Map();
     if (options.enabled) {
-      subscribeToLoggerPlayback();
+      subscribeToCapturePlayback();
       timer = setInterval(evaluateAndPublish, options.updateIntervalMs);
       evaluateAndPublish();
     }
@@ -316,16 +313,16 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
 
   return plugin;
 
-  function subscribeToLoggerPlayback() {
+  function subscribeToCapturePlayback() {
     if (!app.subscriptionmanager?.subscribe) return;
     app.subscriptionmanager.subscribe(
       {
         context: "vessels.self",
-        subscribe: [{ path: LOGGER_PLAYBACK_PATH, policy: "instant", format: "delta" }],
+        subscribe: [{ path: CAPTURE_PLAYBACK_PATH, policy: "instant", format: "delta" }],
       },
       unsubscribes,
       (error) => app.error?.(`[${PLUGIN_ID}] subscription error: ${error}`),
-      handleLoggerPlaybackDelta,
+      handleCapturePlaybackDelta,
     );
   }
 
@@ -339,19 +336,19 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
     });
   }
 
-  function handleLoggerPlaybackDelta(delta) {
+  function handleCapturePlaybackDelta(delta) {
     for (const update of delta?.updates || []) {
       const context = update.context || delta.context || "vessels.self";
       if (context !== "vessels.self") continue;
       for (const entry of update.values || []) {
-        if (entry.path !== LOGGER_PLAYBACK_PATH) continue;
-        handleLoggerPlaybackValue(entry.value);
+        if (entry.path !== CAPTURE_PLAYBACK_PATH) continue;
+        handleCapturePlaybackValue(entry.value);
       }
     }
   }
 
-  function handleLoggerPlaybackValue(value = {}) {
-    if (!value || typeof value !== "object" || !value.playing) {
+  function handleCapturePlaybackValue(value = {}) {
+    if (!value || typeof value !== "object" || value.active !== true) {
       activeReplayKey = null;
       activeReplayRate = 1;
       lastReplayClock = null;
@@ -375,8 +372,7 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
     activeReplayRate = replayRateFromPlaybackValue(value);
     activeReplayWarmup = value.warmupActive === true;
     activeReplayLogicalAt =
-      validIsoTimestamp(value.logicalCapturedAt) ||
-      validIsoTimestamp(value.capturedAt);
+      validIsoTimestamp(value.replayOriginalAt);
   }
 
   function resetRuntimeStateForReplay() {
@@ -493,7 +489,7 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
   }
 
   function replayClock(value) {
-    const sourceMs = Date.parse(value?.capturedAt);
+    const sourceMs = Date.parse(value?.replayOriginalAt);
     if (!Number.isFinite(sourceMs)) return null;
     return { sourceMs, wallMs: Date.now() };
   }
@@ -534,18 +530,7 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
   }
 
   function updateReplayBoundaryFromSignalK() {
-    const loggerClock =
-      app.ajrmMarineLoggerApi?.playbackClock?.() ||
-      globalThis[AJRM_MARINE_LOGGER_API_REGISTRY]?.playbackClock?.();
-    if (loggerClock?.active) {
-      handleLoggerPlaybackValue({
-        ...getSelfPath(app, LOGGER_PLAYBACK_PATH),
-        ...loggerClock,
-        playing: true,
-      });
-      return;
-    }
-    handleLoggerPlaybackValue(getSelfPath(app, LOGGER_PLAYBACK_PATH));
+    handleCapturePlaybackValue(getSelfPath(app, CAPTURE_PLAYBACK_PATH));
   }
 
   function statusResponse() {

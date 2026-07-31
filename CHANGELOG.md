@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.7
+
+- Consume the explicit AJRM Marine Capture replay contract instead of the
+  retired Logger API/path.
+- Use Capture's `replayOriginalAt` as logical voyage time while sensor
+  timestamps are refreshed for Signal K.
+
 ## 0.6.6
 
 - Evaluate replay measurements against Logger's logical replay clock so a
