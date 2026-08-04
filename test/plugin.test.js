@@ -1149,6 +1149,16 @@ test("clears trusted GPS projection when a jump is rejected", async () => {
   const drPosition = rejectedValues["plugins.ajrmMarineGpsIntegrity.deadReckoning.position"];
   assert.ok(Math.abs(drPosition.latitude - 56) < 0.00002);
   assert.ok(Math.abs(drPosition.longitude - -5) < 0.00004);
+  const suspectNotification = messages
+    .flatMap((message) => message.updates.flatMap((update) => update.values || []))
+    .find((value) =>
+      value.path === "notifications.navigation.gnss.integrity" &&
+      value.value?.data?.ajrmMarineNotifications?.context?.trust === "suspect"
+    );
+  assert.equal(
+    suspectNotification.value.data.ajrmMarineNotifications.delivery.retainUntilDelivered,
+    true,
+  );
 });
 
 test("publishes continuous lost GPS as one stable active notification", async () => {
@@ -1177,6 +1187,10 @@ test("publishes continuous lost GPS as one stable active notification", async ()
 
   assert.equal(alarms.length, 1);
   assert.equal(alarms[0].value.data.ajrmMarineNotifications.delivery.preempt, false);
+  assert.equal(
+    alarms[0].value.data.ajrmMarineNotifications.delivery.retainUntilDelivered,
+    false,
+  );
   assert.equal(alarms[0].value.data.ajrmMarineNotifications.priority.score, 750);
   assert.match(
     alarms[0].value.data.ajrmMarineNotifications.eventId,

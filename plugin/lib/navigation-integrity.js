@@ -74,22 +74,25 @@ function evaluateNavigationIntegrity(sample, previousState = null, options = {})
     trust = "lost";
     reasons.push(
       explicitGpsUnavailable
-        ? "GPS source reports no fix."
+        ? "GPS signal lost."
         : position && !positionFresh
-        ? `GPS position is stale (${Math.round(positionAgeSeconds)} seconds old).`
-        : "GPS position is missing or invalid.",
+        ? `GPS position has not updated for ${Math.round(positionAgeSeconds)} seconds.`
+        : "GPS signal lost.",
     );
   }
-  if (Number.isFinite(hdop) && hdop > settings.maxHdop) {
+  if (fixValid && Number.isFinite(hdop) && hdop > settings.maxHdop) {
     trust = maxTrust(trust, "degraded");
     reasons.push(
       `GPS position quality is poor. Accuracy rating ${formatNumber(hdop, 1)}; ` +
       `lower is better, and the acceptable limit is ${settings.maxHdop}.`,
     );
   }
-  if (Number.isFinite(satellites) && satellites < settings.minSatellites) {
+  if (fixValid && Number.isFinite(satellites) && satellites < settings.minSatellites) {
     trust = maxTrust(trust, "degraded");
-    reasons.push(`${satellites} satellites in view is below ${settings.minSatellites}.`);
+    reasons.push(
+      `GPS is using ${satellites} satellite${satellites === 1 ? "" : "s"}; ` +
+      `at least ${settings.minSatellites} are required.`,
+    );
   }
 
   const stationaryGps = fixValid && position && stationaryGpsFix(sample, motionSample, settings);

@@ -223,7 +223,7 @@ test("labels an aged valid position delayed before the 60-second lost threshold"
   assert.equal(delayed.gps.positionAgeSeconds, 11);
   assert.equal(lost.trust, "lost");
   assert.equal(lost.gps.positionState, "lost");
-  assert.match(lost.reasons.join(" "), /GPS position is stale/);
+  assert.match(lost.reasons.join(" "), /GPS position has not updated for 61 seconds/);
 });
 
 test("accepts a smooth shifted GPS track as a degraded baseline reset", () => {
@@ -398,7 +398,7 @@ test("explicit GNSS no-fix beats a fresh cached position", () => {
   assert.equal(lost.acceptedGps, false);
   assert.equal(lost.gps.fixValid, false);
   assert.equal(lost.gps.explicitGpsUnavailable, true);
-  assert.match(lost.reasons.join(" "), /GPS source reports no fix/);
+  assert.deepEqual(lost.reasons, ["GPS signal lost."]);
   assert.equal(lost.counters.lostFixes, 1);
 });
 
@@ -654,7 +654,7 @@ test("treats a stale cached Signal K position as lost GPS", () => {
   assert.equal(stale.acceptedGps, false);
   assert.equal(stale.gps.fixValid, false);
   assert.equal(stale.gps.positionAgeSeconds, 16);
-  assert.match(stale.reasons.join(" "), /GPS position is stale/);
+  assert.match(stale.reasons.join(" "), /GPS position has not updated for 16 seconds/);
   assert.equal(stale.counters.lostFixes, 1);
   assert.equal(stale.counters.drDiscrepancies, 0);
 });
@@ -816,6 +816,31 @@ test("explains poor GPS position quality without relying on HDOP jargon", () => 
   );
   assert.equal(state.gps.hdop, 7.5);
   assert.equal(state.diagnostics.thresholds.maxHdop, 4);
+});
+
+test("describes low satellite use in plain English", () => {
+  const state = evaluateNavigationIntegrity({
+    timestamp: "2026-08-04T15:00:00.000Z",
+    position: { latitude: 56, longitude: -5 },
+    hdop: 1,
+    satellites: 3,
+  }, null, { minSatellites: 4 });
+
+  assert.equal(state.trust, "degraded");
+  assert.deepEqual(state.reasons, ["GPS is using 3 satellites; at least 4 are required."]);
+});
+
+test("lost GPS suppresses stale receiver-quality details", () => {
+  const state = evaluateNavigationIntegrity({
+    timestamp: "2026-08-04T15:00:00.000Z",
+    position: null,
+    explicitGpsUnavailable: true,
+    hdop: 7.1,
+    satellites: 0,
+  }, null, { maxHdop: 4, minSatellites: 4 });
+
+  assert.equal(state.trust, "lost");
+  assert.deepEqual(state.reasons, ["GPS signal lost."]);
 });
 
 test("formats dead-reckoning discrepancy reasons with spoken distance units", () => {

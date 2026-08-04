@@ -683,6 +683,7 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
             audio: true,
             repeatSeconds: state.trust === "degraded" ? 300 : 120,
             preempt: false,
+            retainUntilDelivered: state.trust === "suspect",
           },
           presentation: {
             title,

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.9
+
+- Say `GPS signal lost` without appending stale quality ratings or satellite
+  counts from the preceding valid fix.
+- Describe low satellite use in plain English and correctly refer to satellites
+  being used rather than satellites merely in view.
+- Mark rejected position-jump audio as retained until delivered, so a rapid
+  recovery transition cannot silently discard the safety warning.
+
 ## 0.6.8
 
 - Translate poor-HDOP warnings into plain English, explaining that the GPS

@@ -178,6 +178,8 @@ interval.
   (lower is better), or a low satellite count, when those measurements are
   available.
 - Reject physically impossible GPS jumps.
+- Keep a rejected position-jump warning queued until Audio delivers it or its
+  freshness window expires, even if GPS state changes during speech rendering.
 - Compare GPS against an independent propagated dead-reckoning estimate.
 - Keep operational DR GPS-locked until GPS is unavailable, so the fallback DR
   starts from the best recent trusted position.
