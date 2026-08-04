@@ -801,6 +801,23 @@ test("counts degraded signal and dead-reckoning discrepancy events", () => {
   assert.equal(third.counters.drDiscrepancies, 1);
 });
 
+test("explains poor GPS position quality without relying on HDOP jargon", () => {
+  const state = evaluateNavigationIntegrity({
+    timestamp: "2026-08-04T15:00:00.000Z",
+    position: { latitude: 56, longitude: -5 },
+    hdop: 7.5,
+    satellites: 8,
+  }, null, { maxHdop: 4 });
+
+  assert.equal(state.trust, "degraded");
+  assert.equal(
+    state.reasons[0],
+    "GPS position quality is poor. Accuracy rating 7.5; lower is better, and the acceptable limit is 4.",
+  );
+  assert.equal(state.gps.hdop, 7.5);
+  assert.equal(state.diagnostics.thresholds.maxHdop, 4);
+});
+
 test("formats dead-reckoning discrepancy reasons with spoken distance units", () => {
   assert.equal(_private.formatSpokenDistance(54, "nmi"), "54 meters");
   assert.equal(_private.formatSpokenDistance(1200, "nmi"), "0.6 miles");

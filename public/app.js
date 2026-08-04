@@ -52,7 +52,7 @@ function renderStatus(data) {
       sample.gnssProvenance?.coherent === true ? "Coherent" : "Unavailable",
     ],
     ["Fix", gps.fixValid ? "Valid" : "Missing"],
-    ["HDOP", gps.hdop ?? "n/a"],
+    ["Position quality (HDOP; lower is better)", gps.hdop ?? "n/a"],
     ["Satellites", gps.satellites ?? "n/a"],
     ["SOG", gps.speedOverGround == null ? "n/a" : `${(gps.speedOverGround * 1.943844492).toFixed(1)} kn`],
     ["Sample SOG", sample.speedOverGround == null ? "n/a" : `${(sample.speedOverGround * 1.943844492).toFixed(1)} kn`],

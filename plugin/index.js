@@ -172,7 +172,11 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
         minimum: 3,
         maximum: 80,
       },
-      maxHdop: { type: "number", title: "Maximum acceptable HDOP", default: 4 },
+      maxHdop: {
+        type: "number",
+        title: "Maximum GPS accuracy rating (HDOP; lower is better)",
+        default: 4,
+      },
       minSatellites: { type: "integer", title: "Minimum satellites", default: 4 },
       warningDrDiscrepancyMeters: {
         type: "number",

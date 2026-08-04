@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.8
+
+- Translate poor-HDOP warnings into plain English, explaining that the GPS
+  position-quality rating is poor and that lower values are better, while
+  retaining the measured rating and configured limit.
+- Clarify the HDOP setting and status-page label without removing the standard
+  technical term.
+
 ## 0.6.7
 
 - Consume the explicit AJRM Marine Capture replay contract instead of the

@@ -174,7 +174,9 @@ interval.
 ## First scope
 
 - Detect missing or invalid own-vessel position.
-- Flag degraded HDOP or satellite count when available.
+- Flag poor GPS position quality using the receiver's HDOP accuracy rating
+  (lower is better), or a low satellite count, when those measurements are
+  available.
 - Reject physically impossible GPS jumps.
 - Compare GPS against an independent propagated dead-reckoning estimate.
 - Keep operational DR GPS-locked until GPS is unavailable, so the fallback DR

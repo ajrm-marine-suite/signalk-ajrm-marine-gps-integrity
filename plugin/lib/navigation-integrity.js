@@ -82,7 +82,10 @@ function evaluateNavigationIntegrity(sample, previousState = null, options = {})
   }
   if (Number.isFinite(hdop) && hdop > settings.maxHdop) {
     trust = maxTrust(trust, "degraded");
-    reasons.push(`HDOP ${formatNumber(hdop, 1)} exceeds ${settings.maxHdop}.`);
+    reasons.push(
+      `GPS position quality is poor. Accuracy rating ${formatNumber(hdop, 1)}; ` +
+      `lower is better, and the acceptable limit is ${settings.maxHdop}.`,
+    );
   }
   if (Number.isFinite(satellites) && satellites < settings.minSatellites) {
     trust = maxTrust(trust, "degraded");
