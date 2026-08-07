@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.10
+
+- Add current installation guidance and clarify the Navigation Reference and
+  DR Plotter companion roles.
+
 ## 0.6.9
 
 - Say `GPS signal lost` without appending stale quality ratings or satellite

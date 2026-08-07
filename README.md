@@ -3,6 +3,18 @@
 Signal K plugin and small status webapp for monitoring GPS/GNSS trust and
 publishing a dead-reckoning state for AJRM Marine apps.
 
+## Install
+
+```bash
+cd ~/.signalk
+npm install git+https://github.com/ajrm-marine-suite/signalk-ajrm-marine-gps-integrity.git#v0.6.10 --omit=dev --no-package-lock
+sudo systemctl restart signalk
+```
+
+Enable **AJRM Marine GPS Integrity** in Signal K. Install Navigation Reference
+as its preferred source-selection authority and DR Plotter when a charted
+dead-reckoning display is required.
+
 `v0.6.5` tolerates the sparse and duplicated position cadence observed in real
 voyages. The default GPS-loss threshold is 60 seconds; positions older than 10
 seconds are explicitly labelled `delayed`, while an explicit receiver no-fix
@@ -185,7 +197,7 @@ interval.
   starts from the best recent trusted position.
 - Keep integrity DR independent between configured realignments so slow spoof
   drift can accumulate into a DR discrepancy instead of being reset away.
-- Publish standard Signal K notifications with a Notifications Plus envelope.
+- Publish standard Signal K notifications with an AJRM Marine Notifications envelope.
 
 ## Notes
 
