@@ -1,6 +1,7 @@
 "use strict";
 
 const packageInfo = require("../package.json");
+const openApi = require("./openApi.json");
 const { evaluateNavigationIntegrity } = require("./lib/navigation-integrity");
 
 const PLUGIN_ID = "signalk-ajrm-marine-gps-integrity";
@@ -25,10 +26,6 @@ const PROJECTION_PATHS = [
   `${TRUSTED_PREFIX}.timestamp`,
   `${TRUSTED_PREFIX}.source`,
   `${TRUSTED_PREFIX}.rejectionReason`,
-  `${DEAD_RECKONING_PREFIX}.position`,
-  `${DEAD_RECKONING_PREFIX}.uncertaintyRadiusMeters`,
-  `${DEAD_RECKONING_PREFIX}.source`,
-  `${DEAD_RECKONING_PREFIX}.ageSeconds`,
   `${DEAD_RECKONING_PREFIX}.operational.position`,
   `${DEAD_RECKONING_PREFIX}.operational.uncertaintyRadiusMeters`,
   `${DEAD_RECKONING_PREFIX}.operational.source`,
@@ -77,20 +74,6 @@ const PROJECTION_METADATA = [
     value: {
       units: "rad",
       description: "True heading associated with the currently trusted GPS fix.",
-    },
-  },
-  {
-    path: `${DEAD_RECKONING_PREFIX}.uncertaintyRadiusMeters`,
-    value: {
-      units: "m",
-      description: "Compatibility dead-reckoning uncertainty radius.",
-    },
-  },
-  {
-    path: `${DEAD_RECKONING_PREFIX}.ageSeconds`,
-    value: {
-      units: "s",
-      description: "Compatibility dead-reckoning age.",
     },
   },
   {
@@ -147,6 +130,7 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
   let activeReplayWarmup = false;
   let activeReplayLogicalAt = null;
   let replayTimestampMap = new Map();
+  let running = false;
 
   plugin.id = PLUGIN_ID;
   plugin.name = "AJRM Marine GPS Integrity";
@@ -228,9 +212,11 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
   };
 
   plugin.start = (pluginOptions = {}) => {
+    running = true;
     options = normalizeOptions(pluginOptions);
     publishProjectionMetadata();
     latestState = null;
+    latestSample = null;
     lastNotificationSignature = null;
     activeNotificationKey = null;
     activeNotificationEventId = null;
@@ -243,12 +229,14 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
     if (options.enabled) {
       subscribeToCapturePlayback();
       timer = setInterval(evaluateAndPublish, options.updateIntervalMs);
+      timer.unref?.();
       evaluateAndPublish();
     }
     app.setPluginStatus?.(`${options.enabled ? "Started" : "Disabled"} v${packageInfo.version}`);
   };
 
   plugin.stop = () => {
+    running = false;
     if (timer) clearInterval(timer);
     for (const unsubscribe of unsubscribes) {
       try {
@@ -260,6 +248,7 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
     unsubscribes = [];
     timer = null;
     latestState = null;
+    latestSample = null;
     lastNotificationSignature = null;
     activeNotificationKey = null;
     activeNotificationEventId = null;
@@ -278,27 +267,28 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
     router.get("/status", (_req, res) => {
       res.json(statusResponse());
     });
-    router.put("/settings", async (req, res) => {
+    router.put("/settings", requireWriteAccess(async (req, res) => {
       try {
         options = normalizeOptions({
           ...options,
-          alertsEnabled: req.body?.alertsEnabled,
-          integrityDrRealignSeconds: req.body?.integrityDrRealignSeconds,
+          alertsEnabled: req.body?.alertsEnabled ?? options.alertsEnabled,
+          integrityDrRealignSeconds:
+            req.body?.integrityDrRealignSeconds ?? options.integrityDrRealignSeconds,
         });
         await savePluginOptions(options);
-        if (!options.alertsEnabled) publishValue(NOTIFICATION_PATH, null);
+        if (!options.alertsEnabled) publishNotification(null);
         res.json(statusResponse());
       } catch (error) {
         app.error?.(`[${PLUGIN_ID}] settings save failed: ${error.message}`);
         res.status(500).json({ ok: false, error: error.message });
       }
-    });
-    router.post("/reset", (_req, res) => {
+    }));
+    router.post("/reset", requireWriteAccess((_req, res) => {
       resetRuntimeState("manual");
       if (options.enabled) evaluateAndPublish();
       res.json(statusResponse());
-    });
-    router.post("/manual-fix", (req, res) => {
+    }));
+    router.post("/manual-fix", requireWriteAccess((req, res) => {
       try {
         const manualFix = normalizeManualFix(req.body);
         latestState = manualFixState(manualFix);
@@ -312,10 +302,29 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
       } catch (error) {
         res.status(400).json({ ok: false, error: error.message });
       }
-    });
+    }));
   };
+  plugin.getOpenApi = () => openApi;
 
   return plugin;
+
+  function requireWriteAccess(handler) {
+    return function writeAccessHandler(req, res) {
+      const permission = req.skPrincipal?.permissions;
+      if (
+        permission === "admin" ||
+        permission === "readwrite" ||
+        (permission === undefined && req.skIsAuthenticated !== false)
+      ) {
+        return handler(req, res);
+      }
+      res.status(403).json({
+        ok: false,
+        error: "GPS Integrity controls require Signal K read/write or admin access.",
+      });
+      return undefined;
+    };
+  }
 
   function subscribeToCapturePlayback() {
     if (!app.subscriptionmanager?.subscribe) return;
@@ -542,6 +551,7 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
       ok: true,
       plugin: PLUGIN_ID,
       version: packageInfo.version,
+      running,
       enabled: options.enabled,
       alertsEnabled: options.alertsEnabled,
       integrityDrRealignSeconds: options.integrityDrRealignSeconds,
@@ -591,13 +601,6 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
       { path: `${TRUSTED_PREFIX}.timestamp`, value: trustedAccepted ? state.lastTrustedFix?.timestamp || state.timestamp : null },
       { path: `${TRUSTED_PREFIX}.source`, value: trustedSource },
       { path: `${TRUSTED_PREFIX}.rejectionReason`, value: trustedAccepted ? null : state?.reasons?.join(" ") || null },
-      { path: `${DEAD_RECKONING_PREFIX}.position`, value: deadReckoning.position || null },
-      {
-        path: `${DEAD_RECKONING_PREFIX}.uncertaintyRadiusMeters`,
-        value: deadReckoning.uncertaintyRadiusMeters ?? null,
-      },
-      { path: `${DEAD_RECKONING_PREFIX}.source`, value: deadReckoning.source || null },
-      { path: `${DEAD_RECKONING_PREFIX}.ageSeconds`, value: deadReckoning.ageSeconds ?? null },
       { path: `${DEAD_RECKONING_PREFIX}.operational.position`, value: operational.position || null },
       {
         path: `${DEAD_RECKONING_PREFIX}.operational.uncertaintyRadiusMeters`,

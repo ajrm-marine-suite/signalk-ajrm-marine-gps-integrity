@@ -1,0 +1,183 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "AJRM Marine GPS Integrity API",
+    "version": "0.7.0",
+    "description": "Read navigation-integrity status and perform operator-authorised integrity actions."
+  },
+  "servers": [
+    {
+      "url": "/plugins/signalk-ajrm-marine-gps-integrity"
+    }
+  ],
+  "paths": {
+    "/status": {
+      "get": {
+        "summary": "Read current GPS integrity status",
+        "responses": {
+          "200": {
+            "description": "Current status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/settings": {
+      "put": {
+        "summary": "Update operator-facing integrity settings",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "alertsEnabled": {
+                    "type": "boolean"
+                  },
+                  "integrityDrRealignSeconds": {
+                    "type": "number",
+                    "minimum": 60,
+                    "maximum": 86400
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Settings saved"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "description": "Settings could not be saved"
+          }
+        }
+      }
+    },
+    "/reset": {
+      "post": {
+        "summary": "Reset runtime GPS and dead-reckoning baselines",
+        "responses": {
+          "200": {
+            "description": "Runtime state reset"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/manual-fix": {
+      "post": {
+        "summary": "Set an observed manual position baseline",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["position"],
+                "properties": {
+                  "position": {
+                    "type": "object",
+                    "required": ["latitude", "longitude"],
+                    "properties": {
+                      "latitude": {
+                        "type": "number",
+                        "minimum": -90,
+                        "maximum": 90
+                      },
+                      "longitude": {
+                        "type": "number",
+                        "minimum": -180,
+                        "maximum": 180
+                      }
+                    }
+                  },
+                  "timestamp": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "note": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Manual fix accepted"
+          },
+          "400": {
+            "description": "Invalid manual fix"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "responses": {
+      "Forbidden": {
+        "description": "Signal K read/write or admin access is required"
+      }
+    },
+    "schemas": {
+      "Status": {
+        "type": "object",
+        "required": ["ok", "plugin", "version", "running", "enabled"],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "plugin": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "running": {
+            "type": "boolean"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "alertsEnabled": {
+            "type": "boolean"
+          },
+          "integrityDrRealignSeconds": {
+            "type": "number"
+          },
+          "replayTimeScale": {
+            "type": "number"
+          },
+          "replayLogicalAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "sample": {
+            "type": "object"
+          },
+          "state": {
+            "type": "object"
+          }
+        }
+      }
+    }
+  }
+}

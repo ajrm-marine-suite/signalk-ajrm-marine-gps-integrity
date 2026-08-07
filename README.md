@@ -7,7 +7,7 @@ publishing a dead-reckoning state for AJRM Marine apps.
 
 ```bash
 cd ~/.signalk
-npm install git+https://github.com/ajrm-marine-suite/signalk-ajrm-marine-gps-integrity.git#v0.6.10 --omit=dev --no-package-lock
+npm install git+https://github.com/ajrm-marine-suite/signalk-ajrm-marine-gps-integrity.git#v0.7.0 --omit=dev --no-package-lock
 sudo systemctl restart signalk
 ```
 
@@ -15,27 +15,20 @@ Enable **AJRM Marine GPS Integrity** in Signal K. Install Navigation Reference
 as its preferred source-selection authority and DR Plotter when a charted
 dead-reckoning display is required.
 
-`v0.6.5` tolerates the sparse and duplicated position cadence observed in real
+The monitor tolerates sparse and duplicated position cadence observed in real
 voyages. The default GPS-loss threshold is 60 seconds; positions older than 10
 seconds are explicitly labelled `delayed`, while an explicit receiver no-fix
 still takes effect immediately. Position-jump speed is calculated between GPS
 measurement timestamps. Small position differences within the configurable
 250 ms coincidence window are treated as duplicate reports of one fix (for
-example PGNs 129025 and 129029), while larger jumps are still rejected.
-
-`v0.5.14` makes lost-GPS announcements report when a GPS position was last
-received, rather than when the last trusted GPS fix was accepted. This keeps
-outage wording sensible after a period of suspect/rejected GPS fixes.
-
-`v0.5.11` treats a healthy fixed GPS position with zero SOG/STW as stationary
-for the independent DR comparison, so tide alone does not create a false
-spoofing alarm while tied up. Lost GPS still allows DR to drift with tide.
+example NMEA 2000 PGNs 129025 and 129029), while larger jumps are rejected.
 
 The provider publishes:
 
 - `vessels.self.plugins.ajrmMarineGpsIntegrity.navigationIntegrity`
 - `vessels.self.plugins.ajrmMarineGpsIntegrity.trusted.*`
-- `vessels.self.plugins.ajrmMarineGpsIntegrity.deadReckoning.*`
+- `vessels.self.plugins.ajrmMarineGpsIntegrity.deadReckoning.operational.*`
+- `vessels.self.plugins.ajrmMarineGpsIntegrity.deadReckoning.integrity.*`
 - `vessels.self.plugins.ajrmMarineGpsIntegrity.counters.*`
 - `vessels.self.notifications.navigation.gnss.integrity`
 
@@ -91,10 +84,6 @@ Apps that want a filtered navigation feed can subscribe to:
 - `vessels.self.plugins.ajrmMarineGpsIntegrity.trusted.timestamp`
 - `vessels.self.plugins.ajrmMarineGpsIntegrity.trusted.source`
 - `vessels.self.plugins.ajrmMarineGpsIntegrity.trusted.rejectionReason`
-- `vessels.self.plugins.ajrmMarineGpsIntegrity.deadReckoning.position`
-- `vessels.self.plugins.ajrmMarineGpsIntegrity.deadReckoning.uncertaintyRadiusMeters`
-- `vessels.self.plugins.ajrmMarineGpsIntegrity.deadReckoning.source`
-- `vessels.self.plugins.ajrmMarineGpsIntegrity.deadReckoning.ageSeconds`
 - `vessels.self.plugins.ajrmMarineGpsIntegrity.deadReckoning.operational.position`
 - `vessels.self.plugins.ajrmMarineGpsIntegrity.deadReckoning.operational.uncertaintyRadiusMeters`
 - `vessels.self.plugins.ajrmMarineGpsIntegrity.deadReckoning.operational.source`
@@ -140,8 +129,7 @@ When a current GPS fix is accepted, `trusted.position` carries that fix. When
 GPS is lost or rejected, `trusted.accepted` is false and the trusted position is
 cleared so consumers do not accidentally use stale GPS as live position.
 
-The flat `deadReckoning.*` paths remain as compatibility aliases for operational
-DR. Operational DR is locked to accepted GPS while GPS is healthy, then
+Operational DR is locked to accepted GPS while GPS is healthy, then
 propagates from the last trusted fix when GPS is lost or rejected. It may use
 COG/SOG as an explicitly GPS-dependent fallback, or independent heading/STW and
 a qualified current. If no independent current is available, it may retain the

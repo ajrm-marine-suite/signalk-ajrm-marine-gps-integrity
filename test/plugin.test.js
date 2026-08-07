@@ -875,7 +875,10 @@ test("publishes trusted GPS and dead-reckoning projection paths", async () => {
   assert.equal(values["plugins.ajrmMarineGpsIntegrity.trusted.courseOverGroundTrue"], 1.2);
   assert.equal(values["plugins.ajrmMarineGpsIntegrity.trusted.headingTrue"], 1.1);
   assert.equal(values["plugins.ajrmMarineGpsIntegrity.trusted.source"], "gps");
-  assert.deepEqual(values["plugins.ajrmMarineGpsIntegrity.deadReckoning.position"], { latitude: 56, longitude: -5 });
+  assert.equal(
+    Object.hasOwn(values, "plugins.ajrmMarineGpsIntegrity.deadReckoning.position"),
+    false,
+  );
   assert.deepEqual(values["plugins.ajrmMarineGpsIntegrity.deadReckoning.operational.position"], { latitude: 56, longitude: -5 });
   assert.equal(values["plugins.ajrmMarineGpsIntegrity.deadReckoning.operational.source"], "gps-locked");
   assert.deepEqual(values["plugins.ajrmMarineGpsIntegrity.deadReckoning.integrity.position"], { latitude: 56, longitude: -5 });
@@ -923,6 +926,36 @@ test("settings route persists independent DR realign interval", async () => {
   });
   plugin.start({ updateIntervalMs: 500 });
 
+  const openApi = plugin.getOpenApi();
+  assert.equal(openApi.openapi, "3.0.3");
+  assert.ok(openApi.paths["/status"]?.get);
+  assert.ok(openApi.paths["/settings"]?.put);
+  assert.ok(openApi.paths["/reset"]?.post);
+  assert.ok(openApi.paths["/manual-fix"]?.post);
+  const runningStatus = await routeJson(routes.get("GET /status"));
+  assert.equal(runningStatus.running, true);
+
+  let deniedStatusCode = 200;
+  let deniedBody = null;
+  await routes.get("PUT /settings")(
+    {
+      skIsAuthenticated: false,
+      body: { alertsEnabled: false },
+    },
+    {
+      status(code) {
+        deniedStatusCode = code;
+        return this;
+      },
+      json(value) {
+        deniedBody = value;
+      },
+    },
+  );
+  assert.equal(deniedStatusCode, 403);
+  assert.match(deniedBody.error, /read\/write|admin/i);
+  assert.equal(savedOptions, null);
+
   let statusCode = 200;
   let body = null;
   await routes.get("PUT /settings")(
@@ -942,13 +975,30 @@ test("settings route persists independent DR realign interval", async () => {
       },
     },
   );
-  plugin.stop();
-
   assert.equal(statusCode, 200);
   assert.equal(body.alertsEnabled, false);
   assert.equal(body.integrityDrRealignSeconds, 120);
   assert.equal(savedOptions.alertsEnabled, false);
   assert.equal(savedOptions.integrityDrRealignSeconds, 120);
+
+  await routes.get("PUT /settings")(
+    {
+      body: { integrityDrRealignSeconds: 180 },
+    },
+    {
+      status() {
+        return this;
+      },
+      json(value) {
+        body = value;
+      },
+    },
+  );
+  assert.equal(body.alertsEnabled, false);
+  assert.equal(body.integrityDrRealignSeconds, 180);
+  assert.equal(savedOptions.alertsEnabled, false);
+  assert.equal(savedOptions.integrityDrRealignSeconds, 180);
+  plugin.stop();
 });
 
 test("manual fix route publishes a trusted observed position and DR baseline", async () => {
@@ -1146,7 +1196,8 @@ test("clears trusted GPS projection when a jump is rejected", async () => {
   assert.match(rejectedValues["plugins.ajrmMarineGpsIntegrity.trusted.rejectionReason"], /Position jump/);
   assert.equal(rejectedValues["plugins.ajrmMarineGpsIntegrity.counters.rejectedFixes"], 1);
   assert.equal(rejectedValues["plugins.ajrmMarineGpsIntegrity.counters.positionJumps"], 1);
-  const drPosition = rejectedValues["plugins.ajrmMarineGpsIntegrity.deadReckoning.position"];
+  const drPosition =
+    rejectedValues["plugins.ajrmMarineGpsIntegrity.deadReckoning.operational.position"];
   assert.ok(Math.abs(drPosition.latitude - 56) < 0.00002);
   assert.ok(Math.abs(drPosition.longitude - -5) < 0.00004);
   const suspectNotification = messages

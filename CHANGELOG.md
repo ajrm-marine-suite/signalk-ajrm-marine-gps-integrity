@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.7.0
+
+- Publish OpenAPI for all current HTTP routes and require Signal K read/write
+  or admin access for settings, reset, and manual-fix operations.
+- Preserve omitted settings during partial updates instead of silently
+  re-enabling alerts or resetting the DR realignment interval.
+- Reset the cached sample across plugin restarts, expose running state, and make
+  the evaluation timer non-blocking during process shutdown.
+- Remove the unused flat `deadReckoning.*` compatibility projection. Current
+  consumers use the explicit `deadReckoning.operational.*` and
+  `deadReckoning.integrity.*` contracts.
+- Replace accumulated release notes in the README with current operating
+  guidance; detailed release history remains in this changelog.
+
 ## 0.6.10
 
 - Add current installation guidance and clarify the Navigation Reference and
