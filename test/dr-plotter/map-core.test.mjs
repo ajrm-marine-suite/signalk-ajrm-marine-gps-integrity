@@ -21,8 +21,8 @@ test("map page uses the standard left-side controls with zoom first", async () =
     readFile(new URL("../../public/plotter/app.js", import.meta.url), "utf8"),
     readFile(new URL("../../public/plotter/styles.css", import.meta.url), "utf8"),
   ]);
-  assert.match(html, /ajrm-map-core\.css\?v=0\.7\.1/);
-  assert.match(html, /type="module" src="\.\/app\.js\?v=0\.8\.3"/);
+  assert.match(html, /ajrm-map-core\.css\?v=0\.7\.2/);
+  assert.match(html, /type="module" src="\.\/app\.js\?v=0\.8\.4"/);
   assert.match(html, /<header class="topbar" hidden>/);
   assert.match(html, /id="toggleStatus"[^>]+aria-pressed="false"/);
   assert.match(html, /id="statusDrawer" class="drawer drawer-left"/);
@@ -38,6 +38,9 @@ test("map page uses the standard left-side controls with zoom first", async () =
   assert.match(await readFile(new URL("../../public/plotter/ajrm-map-core.mjs", import.meta.url), "utf8"), /CHART_CYCLE_SHORTCUT_STORAGE_KEY = "chartCycleShortcut"/);
   assert.match(await readFile(new URL("../../public/plotter/ajrm-map-core.mjs", import.meta.url), "utf8"), /export function floatingPanelHeight/);
   assert.match(app, /MapCore\.createActionToolbarControl/);
+  assert.match(app, /MapCore\.mapFollowLookAheadCenter/);
+  assert.match(app, /MapCore\.loadMapFollowLookAheadPercent\(localStorage\)/);
+  assert.match(html, /id="mapFollowLookAhead"[^>]+value="66"/);
   assert.match(app, /statusElement:\s*elements\.chartCycleStatus/);
   assert.match(app, /requestJson\(`\$\{apiBase\}\/active-route`\)/);
   assert.match(app, /rotation:\s*bearing - 90/);

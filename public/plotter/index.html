@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>AJRM Marine DR Plotter</title>
     <link rel="stylesheet" href="./leaflet.css">
-    <link rel="stylesheet" href="./ajrm-map-core.css?v=0.7.1">
-    <link rel="stylesheet" href="./styles.css?v=0.8.3">
+    <link rel="stylesheet" href="./ajrm-map-core.css?v=0.7.2">
+    <link rel="stylesheet" href="./styles.css?v=0.8.4">
   </head>
   <body>
     <div id="map" class="map" aria-label="Dead-reckoning chart"></div>
@@ -115,6 +115,12 @@
           </select>
         </label>
         <p class="plot-status">Applies immediately and is remembered by this browser. Plugin Config supplies the initial default.</p>
+        <label class="field-row">
+          <span>Chart ahead while following</span>
+          <input id="mapFollowLookAhead" type="range" min="50" max="80" step="1" value="66">
+        </label>
+        <p id="mapFollowLookAheadValue" class="plot-status">66% ahead / 34% behind</p>
+        <p class="plot-status">Uses COG to leave more visible chart ahead of the vessel. At 50% the vessel is centred; without COG it remains centred. This setting is shared with other AJRM Marine map apps in this browser.</p>
       </div>
       <div class="drawer-section plot-settings">
         <h3>Plot fixes</h3>
@@ -205,6 +211,6 @@
     <div id="cursorPosition" class="cursor-position" aria-live="polite">Cursor --</div>
     <script src="./leaflet.js"></script>
     <script src="./protomaps-leaflet.js"></script>
-    <script type="module" src="./app.js?v=0.8.3"></script>
+    <script type="module" src="./app.js?v=0.8.4"></script>
   </body>
 </html>

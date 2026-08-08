@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.4
+
+- Give DR Plotter the shared COG-oriented own-vessel look-ahead used by Display.
+- Default to 66% visible chart ahead and 34% behind, with a 50-80% browser
+  control and centred fallback when COG is unavailable.
+- Update the pinned shared map shell to 0.7.2.
+
 ## 0.8.3
 
 - Add concise purpose headers to every maintained runtime module so its role is

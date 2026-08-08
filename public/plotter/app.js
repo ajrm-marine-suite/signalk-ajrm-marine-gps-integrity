@@ -2,7 +2,7 @@
  * Implements the app responsibilities of the AJRM Marine Navigation Integrity browser application.
  */
 
-import * as MapCore from "./ajrm-map-core.mjs?v=0.7.1";
+import * as MapCore from "./ajrm-map-core.mjs?v=0.7.2";
 
 const apiBase = "/plugins/signalk-ajrm-marine-gps-integrity/plotter";
 const gpsIntegrityApiBase = "/plugins/signalk-ajrm-marine-gps-integrity";
@@ -47,6 +47,8 @@ const elements = {
   integrityProvenance: document.querySelector("#integrityProvenance"),
   hdop: document.querySelector("#hdop"),
   coordinateFormat: document.querySelector("#coordinateFormat"),
+  mapFollowLookAhead: document.querySelector("#mapFollowLookAhead"),
+  mapFollowLookAheadValue: document.querySelector("#mapFollowLookAheadValue"),
   plotInterval: document.querySelector("#plotInterval"),
   plotNowDrawer: document.querySelector("#plotNowDrawer"),
   clearPlots: document.querySelector("#clearPlots"),
@@ -710,7 +712,7 @@ function followOwnshipIfEnabled(state) {
   if (!position) return;
   disableMapFollowPause = true;
   try {
-    map.panTo([position.latitude, position.longitude], { animate: false });
+    map.panTo(ownshipFollowMapCenter(state, position), { animate: false });
     updateAutoChart();
   } finally {
     disableMapFollowPause = false;
@@ -724,6 +726,36 @@ function ownshipFollowPosition(state) {
     state?.gps?.position ||
     null
   );
+}
+
+function ownshipFollowCogRadians(state) {
+  const vectorDegrees = state?.vectors?.courseOverGround?.bearingTrueDegrees;
+  if (vectorDegrees != null && Number.isFinite(Number(vectorDegrees))) {
+    return (Number(vectorDegrees) * Math.PI) / 180;
+  }
+  const gpsCogRadians = state?.gps?.courseOverGroundTrue;
+  return gpsCogRadians != null && Number.isFinite(Number(gpsCogRadians))
+    ? Number(gpsCogRadians)
+    : null;
+}
+
+function ownshipFollowMapCenter(state, position = ownshipFollowPosition(state)) {
+  return MapCore.mapFollowLookAheadCenter({
+    map,
+    position,
+    cogRadians: ownshipFollowCogRadians(state),
+    lookAheadPercent: MapCore.loadMapFollowLookAheadPercent(localStorage),
+  });
+}
+
+function applyMapFollowLookAheadSetting(value) {
+  const normalized = value == null
+    ? MapCore.loadMapFollowLookAheadPercent(localStorage)
+    : MapCore.saveMapFollowLookAheadPercent(value, localStorage);
+  elements.mapFollowLookAhead.value = String(normalized);
+  elements.mapFollowLookAheadValue.textContent =
+    `${normalized}% ahead / ${100 - normalized}% behind`;
+  return normalized;
 }
 
 function pauseMapFollowFromUserAction() {
@@ -741,7 +773,10 @@ function recenterOnOwnship() {
   setMapFollowSelf(true);
   disableMapFollowPause = true;
   try {
-    map.panTo([position.latitude, position.longitude], { animate: false });
+    map.panTo(
+      ownshipFollowMapCenter(latestStatus?.ajrmMarineGpsIntegrity, position),
+      { animate: false },
+    );
     if (map.getZoom() < 13) map.setZoom(13, { animate: false });
     updateAutoChart();
   } finally {
@@ -1638,12 +1673,17 @@ elements.plotInterval.addEventListener("change", () => {
 elements.coordinateFormat.addEventListener("change", () => {
   applyCoordinateFormat(elements.coordinateFormat.value);
 });
+elements.mapFollowLookAhead.addEventListener("input", () => {
+  applyMapFollowLookAheadSetting(elements.mapFollowLookAhead.value);
+  if (mapFollowSelf) recenterOnOwnship();
+});
 for (const choice of elements.baseMapChoices) {
   choice.addEventListener("change", () => setBaseMap(choice.value));
 }
 elements.autoCharts.addEventListener("change", () => setAutoChartsEnabled(elements.autoCharts.checked));
 elements.openSeaMap.addEventListener("change", () => setOverlay(seamarkLayer, elements.openSeaMap.checked, "ajrmMarineDrPlotterOpenSeaMap"));
 
+applyMapFollowLookAheadSetting();
 refreshStatus();
 setInterval(refreshStatus, 1000);
 setInterval(refreshActiveRoute, 5000);
