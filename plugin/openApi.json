@@ -1,9 +1,9 @@
 {
   "openapi": "3.0.3",
   "info": {
-    "title": "AJRM Marine GPS Integrity API",
-    "version": "0.7.0",
-    "description": "Read navigation-integrity status and perform operator-authorised integrity actions."
+    "title": "AJRM Marine Navigation Integrity API",
+    "version": "0.8.0",
+    "description": "Read navigation-reference and integrity status, use the DR Plotter, and perform operator-authorised integrity actions."
   },
   "servers": [
     {
@@ -11,6 +11,23 @@
     }
   ],
   "paths": {
+    "/reference/status": {
+      "get": { "summary": "Read the source-aware Navigation Reference", "responses": { "200": { "description": "Navigation Reference status" } } }
+    },
+    "/plotter/status": {
+      "get": { "summary": "Read DR Plotter status", "responses": { "200": { "description": "DR Plotter status" } } }
+    },
+    "/plotter/plot-fixes": {
+      "get": { "summary": "List persisted DR plot fixes", "responses": { "200": { "description": "Plot fixes" } } },
+      "post": { "summary": "Add a DR plot fix", "responses": { "200": { "description": "Plot fix added" } } },
+      "put": { "summary": "Replace persisted DR plot fixes", "responses": { "200": { "description": "Plot fixes replaced" } } },
+      "delete": { "summary": "Clear persisted DR plot fixes", "responses": { "200": { "description": "Plot fixes cleared" } } }
+    },
+    "/plotter/track": {
+      "get": { "summary": "Read the operational DR track", "responses": { "200": { "description": "DR track" } } },
+      "put": { "summary": "Replace the operational DR track", "responses": { "200": { "description": "DR track replaced" } } },
+      "delete": { "summary": "Clear the operational DR track", "responses": { "200": { "description": "DR track cleared" } } }
+    },
     "/status": {
       "get": {
         "summary": "Read current GPS integrity status",

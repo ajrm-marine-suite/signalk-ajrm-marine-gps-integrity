@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="AJRM Marine DR Plotter">
+  <rect width="120" height="120" rx="24" fill="#102033"/>
+  <path d="M22 78l34-42 42 18-26 30z" fill="none" stroke="#7dd3fc" stroke-width="6" stroke-linejoin="round"/>
+  <circle cx="56" cy="36" r="8" fill="#22c55e"/>
+  <circle cx="72" cy="84" r="15" fill="none" stroke="#facc15" stroke-width="5"/>
+  <path d="M46 78h52M82 66l16 12-16 12" stroke="#e5e7eb" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

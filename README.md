@@ -1,19 +1,22 @@
-# AJRM Marine GPS Integrity
+# AJRM Marine Navigation Integrity (GPS Integrity)
 
-Signal K plugin and small status webapp for monitoring GPS/GNSS trust and
-publishing a dead-reckoning state for AJRM Marine apps.
+One Signal K package for source-aware Navigation Reference, GPS/GNSS trust,
+dead reckoning, and the charted DR Plotter. The established Signal K paths and
+DR Plotter data files remain unchanged.
 
 ## Install
 
 ```bash
 cd ~/.signalk
-npm install git+https://github.com/ajrm-marine-suite/signalk-ajrm-marine-gps-integrity.git#v0.7.0 --omit=dev --no-package-lock
+npm install git+https://github.com/ajrm-marine-suite/signalk-ajrm-marine-gps-integrity.git#v0.8.0 --omit=dev --no-package-lock
 sudo systemctl restart signalk
 ```
 
-Enable **AJRM Marine GPS Integrity** in Signal K. Install Navigation Reference
-as its preferred source-selection authority and DR Plotter when a charted
-dead-reckoning display is required.
+Enable **AJRM Marine Navigation Integrity** in Signal K. Navigation Reference
+is now its internal source-selection provider. Select **Open DR Plotter** from
+the status page for the charted dead-reckoning display. Existing standalone
+Navigation Reference settings and DR Plotter fixes, track, and settings are
+loaded from their previous files during migration.
 
 The monitor tolerates sparse and duplicated position cadence observed in real
 voyages. The default GPS-loss threshold is 60 seconds; positions older than 10
@@ -38,7 +41,7 @@ vectors for heading through water, tide/current, and course over ground.
 `navigationIntegrity.diagnostics` records the observed inputs, decision flags,
 thresholds, current source, and DR uncertainty used for that evaluation so
 captured voyages can explain GPS loss, weak signal, jumps, and DR mismatch
-events later in AJRM Marine Voyage Viewer.
+events later in AJRM Marine Capture voyage review.
 
 GPS trust and integrity assurance are deliberately separate. A coherent,
 healthy GPS fix can be accepted while `integrityAssurance.status` is

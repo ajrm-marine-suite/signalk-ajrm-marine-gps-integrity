@@ -1,8 +1,13 @@
 "use strict";
 
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
 const packageInfo = require("../package.json");
 const openApi = require("./openApi.json");
 const { evaluateNavigationIntegrity } = require("./lib/navigation-integrity");
+const createNavigationReference = require("./components/navigation-reference");
+const createDrPlotter = require("./components/dr-plotter");
 
 const PLUGIN_ID = "signalk-ajrm-marine-gps-integrity";
 const CAPTURE_PLAYBACK_PATH = "plugins.ajrmMarineCapture.playback";
@@ -115,6 +120,8 @@ const PROJECTION_METADATA = [
 
 module.exports = function ajrmMarineGpsIntegrity(app) {
   const plugin = {};
+  const navigationReference = createNavigationReference(app, { embedded: true });
+  const drPlotter = createDrPlotter(app, { embedded: true });
   let options = normalizeOptions({});
   let timer = null;
   let latestState = null;
@@ -133,9 +140,9 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
   let running = false;
 
   plugin.id = PLUGIN_ID;
-  plugin.name = "AJRM Marine GPS Integrity";
+  plugin.name = "AJRM Marine Navigation Integrity";
   plugin.description =
-    "Monitors GNSS trust, compares GPS with dead reckoning, and publishes navigation integrity state.";
+    "Provides source-aware navigation reference, GNSS integrity monitoring, dead reckoning, and the DR Plotter.";
 
   plugin.schema = {
     type: "object",
@@ -208,12 +215,30 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
         minimum: 60,
         maximum: 86400,
       },
+      navigationReference: {
+        type: "object",
+        title: "Navigation Reference",
+        properties: navigationReference.schema.properties,
+      },
+      drPlotter: {
+        type: "object",
+        title: "DR Plotter",
+        properties: drPlotter.schema.properties,
+      },
     },
   };
 
   plugin.start = (pluginOptions = {}) => {
     running = true;
     options = normalizeOptions(pluginOptions);
+    navigationReference.start(componentConfiguration(
+      pluginOptions.navigationReference,
+      "signalk-ajrm-marine-navigation-reference",
+    ));
+    drPlotter.start(componentConfiguration(
+      pluginOptions.drPlotter,
+      "signalk-ajrm-marine-dr-plotter",
+    ));
     publishProjectionMetadata();
     latestState = null;
     latestSample = null;
@@ -235,7 +260,7 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
     app.setPluginStatus?.(`${options.enabled ? "Started" : "Disabled"} v${packageInfo.version}`);
   };
 
-  plugin.stop = () => {
+  plugin.stop = async () => {
     running = false;
     if (timer) clearInterval(timer);
     for (const unsubscribe of unsubscribes) {
@@ -261,9 +286,13 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
     publishValue(STATE_PATH, null);
     publishValues(PROJECTION_PATHS.map((path) => ({ path, value: null })));
     publishValue(NOTIFICATION_PATH, null);
+    navigationReference.stop();
+    await drPlotter.stop();
   };
 
   plugin.registerWithRouter = (router) => {
+    navigationReference.registerWithRouter(prefixedRouter(router, "/reference"));
+    drPlotter.registerWithRouter(prefixedRouter(router, "/plotter"));
     router.get("/status", (_req, res) => {
       res.json(statusResponse());
     });
@@ -1369,6 +1398,41 @@ function buildManualFixVectors(sample) {
     tide: vector(sample.currentDrift, sample.currentSetTrue, "triple"),
     courseOverGround: vector(sample.speedOverGround, sample.courseOverGroundTrue, "double"),
   };
+}
+
+function prefixedRouter(router, prefix) {
+  const mount = (method) => (route, ...handlers) => {
+    if (typeof router[method] === "function") {
+      return router[method](`${prefix}${route}`, ...handlers);
+    }
+    return undefined;
+  };
+  return {
+    get: mount("get"),
+    put: mount("put"),
+    post: mount("post"),
+    delete: mount("delete"),
+  };
+}
+
+function componentConfiguration(value, legacyPluginId) {
+  if (value && typeof value === "object" && Object.keys(value).length > 0) {
+    return value;
+  }
+  const filePath = path.join(
+    os.homedir(),
+    ".signalk",
+    "plugin-config-data",
+    `${legacyPluginId}.json`,
+  );
+  try {
+    const document = JSON.parse(fs.readFileSync(filePath, "utf8"));
+    return document.configuration && typeof document.configuration === "object"
+      ? document.configuration
+      : document;
+  } catch {
+    return {};
+  }
 }
 
 module.exports._private = {

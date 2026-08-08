@@ -1,0 +1,208 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "AJRM Marine DR Plotter API",
+    "version": "0.7.2",
+    "description": "Read navigation plotting state and manage persisted DR tracks and navigator fixes."
+  },
+  "servers": [
+    {
+      "url": "/plugins/signalk-ajrm-marine-dr-plotter"
+    }
+  ],
+  "paths": {
+    "/status": {
+      "get": {
+        "summary": "Read DR Plotter status",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          }
+        }
+      }
+    },
+    "/settings": {
+      "put": {
+        "summary": "Update runtime plot-fix settings",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "plotFixIntervalMinutes": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 120
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/Failure"
+          }
+        }
+      }
+    },
+    "/plot-fixes": {
+      "get": {
+        "summary": "List persisted navigator plot fixes",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "500": {
+            "$ref": "#/components/responses/Failure"
+          }
+        }
+      },
+      "put": {
+        "summary": "Replace persisted navigator plot fixes",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/Failure"
+          }
+        }
+      },
+      "post": {
+        "summary": "Append one navigator plot fix",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "description": "Invalid plot fix"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/Failure"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete all persisted navigator plot fixes",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/Failure"
+          }
+        }
+      }
+    },
+    "/track": {
+      "get": {
+        "summary": "Read the persisted operational DR track",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "500": {
+            "$ref": "#/components/responses/Failure"
+          }
+        }
+      },
+      "put": {
+        "summary": "Replace the persisted operational DR track",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/Failure"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete the persisted operational DR track",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/Failure"
+          }
+        }
+      }
+    },
+    "/fixes": {
+      "get": {
+        "summary": "Read plot fixes as Signal K-style resources",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "500": {
+            "$ref": "#/components/responses/Failure"
+          }
+        }
+      }
+    },
+    "/charts": {
+      "get": {
+        "summary": "List Signal K chart resources",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "500": {
+            "$ref": "#/components/responses/Failure"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "responses": {
+      "Success": {
+        "description": "Request completed",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "ok": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "Signal K read/write or admin access is required"
+      },
+      "Failure": {
+        "description": "The operation failed"
+      }
+    }
+  }
+}

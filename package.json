@@ -1,10 +1,10 @@
 {
   "name": "signalk-ajrm-marine-gps-integrity",
-  "version": "0.7.0",
-  "description": "GNSS integrity monitor for AJRM Marine Suite.",
+  "version": "0.8.0",
+  "description": "Source-aware navigation reference, GNSS integrity monitor, dead reckoning, and DR Plotter for AJRM Marine Suite.",
   "main": "plugin/index.js",
   "scripts": {
-    "test": "node --test && node --check plugin/index.js && node --check public/app.js"
+    "test": "node --test && node --check plugin/index.js && node --check plugin/components/navigation-reference.js && node --check plugin/components/dr-plotter.js && node --check public/app.js && node --check public/plotter/app.js"
   },
   "keywords": [
     "signalk-node-server-plugin",
@@ -40,10 +40,14 @@
   ],
   "signalk-plugin-enabled-by-default": true,
   "signalk": {
-    "displayName": "AJRM Marine GPS Integrity",
-    "appIcon": "./icon.svg",
-    "recommends": [
-      "signalk-ajrm-marine-dr-plotter"
-    ]
+    "displayName": "AJRM Marine Navigation Integrity",
+    "appIcon": "./public/icon.svg",
+    "recommends": []
+  },
+  "dependencies": {
+    "geomagnetism": "^0.2.0"
+  },
+  "devDependencies": {
+    "@ajrm-marine/map-core": "github:ajrm-marine-suite/ajrm-marine-map-core#v0.7.0"
   }
 }

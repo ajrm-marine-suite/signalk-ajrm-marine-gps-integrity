@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>AJRM Marine DR Plotter</title>
+    <link rel="stylesheet" href="./leaflet.css">
+    <link rel="stylesheet" href="./ajrm-map-core.css?v=0.7.0">
+    <link rel="stylesheet" href="./styles.css?v=0.6.15">
+  </head>
+  <body>
+    <div id="map" class="map" aria-label="Dead-reckoning chart"></div>
+    <a class="integrity-return" href="../" title="Return to Navigation Integrity">← Navigation Integrity</a>
+
+    <header class="topbar" hidden>
+      <div class="brand">
+        <img src="./icon.svg" alt="" class="app-icon">
+        <div>
+          <h1>AJRM Marine DR Plotter</h1>
+          <p id="subtitle">Own-vessel GPS integrity and dead reckoning</p>
+        </div>
+      </div>
+      <div class="top-actions">
+        <button id="toggleStatus" class="map-control-button" type="button" title="Status" aria-label="Status" aria-pressed="false">
+          <span class="control-icon status-icon" aria-hidden="true"></span>
+        </button>
+        <button id="toggleCharts" class="map-control-button" type="button" title="Charts" aria-label="Charts" aria-pressed="false" hidden>
+          <svg class="control-icon chart-icon" viewBox="0 0 16 16" width="1em" height="1em" fill="currentColor" focusable="false" aria-hidden="true">
+            <path d="M8.235 1.559a.5.5 0 0 0-.47 0l-7.5 4a.5.5 0 0 0 0 .882l7.5 4a.5.5 0 0 0 .47 0l7.5-4a.5.5 0 0 0 0-.882z"/>
+            <path d="m2.125 8.567-1.86.992a.5.5 0 0 0 0 .882l7.5 4a.5.5 0 0 0 .47 0l7.5-4a.5.5 0 0 0 0-.882l-1.86-.992-5.17 2.756a1.5 1.5 0 0 1-1.41 0z"/>
+          </svg>
+        </button>
+        <button id="centreOwnship" class="map-control-button following" type="button" title="Following own vessel" aria-label="Following own vessel" aria-pressed="true">
+          <span class="follow-icon-wrap" aria-hidden="true">
+            <svg class="control-icon follow-icon" viewBox="0 0 16 16" width="1em" height="1em" fill="currentColor" focusable="false">
+              <path d="M14.082 2.182a.5.5 0 0 1 .103.557l-5.5 12a.5.5 0 0 1-.95-.084L6.57 9.43 1.345 8.265a.5.5 0 0 1-.084-.95l12-5.5a.5.5 0 0 1 .821.367"/>
+            </svg>
+            <svg class="control-icon follow-slash-icon" viewBox="0 0 16 16" width="1em" height="1em" fill="currentColor" focusable="false">
+              <path d="M13.854 2.146a.5.5 0 0 1 0 .708l-11 11a.5.5 0 0 1-.708-.708l11-11a.5.5 0 0 1 .708 0"/>
+            </svg>
+          </span>
+        </button>
+        <button id="plotNow" class="plot-now-button" type="button" title="Plot current DR position" aria-label="Plot current DR position">
+          Plot now
+        </button>
+      </div>
+    </header>
+
+    <div class="map-status-stack">
+      <div
+        id="gpsStatusIndicator"
+        class="ajrm-marine-gps-status ajrm-marine-gps-status-unknown"
+        role="status"
+        aria-live="polite"
+        title="GPS status unknown"
+      >
+        <span class="ajrm-marine-gps-status-led" aria-hidden="true"></span>
+        <span id="gpsStatusText">GPS ?</span>
+      </div>
+      <div id="chartCycleStatus" class="ajrm-map-chart-cycle-status" role="status" aria-live="polite" hidden></div>
+    </div>
+
+    <aside id="statusDrawer" class="drawer drawer-left" aria-label="Navigation integrity">
+      <div class="drawer-header">
+        <div>
+          <h2>Navigation integrity</h2>
+          <p id="statusLine">Loading...</p>
+        </div>
+      </div>
+      <div id="trustBadge" class="trust-badge">Unknown</div>
+      <div id="warningText" class="warning-text">Waiting for GPS integrity provider.</div>
+      <h3>Navigation reference</h3>
+      <div class="facts">
+        <div><span>Kind</span><strong id="referenceKind">n/a</strong></div>
+        <div><span>Source</span><strong id="referenceSource">n/a</strong></div>
+        <div><span>Age</span><strong id="referenceAge">n/a</strong></div>
+        <div><span>Uncertainty</span><strong id="referenceUncertainty">n/a</strong></div>
+        <div><span>Dependence</span><strong id="referenceDependency">n/a</strong></div>
+      </div>
+      <h3>Operational DR</h3>
+      <div class="facts">
+        <div><span>Operational DR age</span><strong id="fixAge">n/a</strong></div>
+        <div><span>Operational uncertainty</span><strong id="uncertainty">n/a</strong></div>
+        <div><span>Operational source</span><strong id="drSource">n/a</strong></div>
+        <div><span>Dependence</span><strong id="drDependency">n/a</strong></div>
+        <div><span>Leeway</span><strong id="drLeeway">n/a</strong></div>
+        <div><span>Current/residual origin</span><strong id="drCurrentOrigin">n/a</strong></div>
+        <div><span>Provenance</span><strong id="drProvenance">n/a</strong></div>
+      </div>
+      <h3>Integrity DR</h3>
+      <div class="facts">
+        <div><span>Source</span><strong id="integritySource">n/a</strong></div>
+        <div><span>Assurance</span><strong id="integrityAssurance">n/a</strong></div>
+        <div><span>Comparison</span><strong id="integrityComparison">n/a</strong></div>
+        <div><span>Reason</span><strong id="integrityReason">n/a</strong></div>
+        <div><span>Age</span><strong id="integrityAge">n/a</strong></div>
+        <div><span>Uncertainty</span><strong id="integrityUncertainty">n/a</strong></div>
+        <div><span>Dependence</span><strong id="integrityDependency">n/a</strong></div>
+        <div><span>Leeway</span><strong id="integrityLeeway">n/a</strong></div>
+        <div><span>Current origin</span><strong id="integrityCurrentOrigin">n/a</strong></div>
+        <div><span>Provenance</span><strong id="integrityProvenance">n/a</strong></div>
+      </div>
+      <h3>GPS evidence</h3>
+      <div class="facts">
+        <div><span>GPS HDOP</span><strong id="hdop">n/a</strong></div>
+      </div>
+      <div class="drawer-section plot-settings">
+        <h3>Display</h3>
+        <label class="field-row">
+          <span>Coordinates</span>
+          <select id="coordinateFormat">
+            <option value="dms">Degrees minutes seconds</option>
+            <option value="degrees-minutes">Degrees decimal minutes</option>
+            <option value="decimal">Decimal degrees</option>
+          </select>
+        </label>
+        <p class="plot-status">Applies immediately and is remembered by this browser. Plugin Config supplies the initial default.</p>
+      </div>
+      <div class="drawer-section plot-settings">
+        <h3>Plot fixes</h3>
+        <label class="field-row">
+          <span>Interval</span>
+          <select id="plotInterval">
+            <option value="0">Off</option>
+            <option value="1">1 min</option>
+            <option value="5">5 min</option>
+            <option value="10">10 min</option>
+            <option value="15">15 min</option>
+            <option value="30">30 min</option>
+          </select>
+        </label>
+        <div class="plot-actions">
+          <button id="plotNowDrawer" type="button">Plot now</button>
+          <button id="clearPlots" type="button">Clear fixes</button>
+          <button id="clearAllPlots" type="button">Clear all plots</button>
+        </div>
+        <details class="manual-fix-panel">
+          <summary>Observed fix</summary>
+          <div class="manual-fix-grid">
+            <label>
+              <span>Latitude</span>
+              <input id="manualFixLatitude" type="text" inputmode="text" placeholder="56N 12' 40.4''">
+            </label>
+            <label>
+              <span>Longitude</span>
+              <input id="manualFixLongitude" type="text" inputmode="text" placeholder="5W 33' 28.4''">
+            </label>
+            <label class="manual-fix-note">
+              <span>Note</span>
+              <input id="manualFixNote" type="text" maxlength="80" placeholder="Bearings, transits, or radar">
+            </label>
+          </div>
+          <button id="pickManualFixFromCursor" type="button">Get from cursor</button>
+          <button id="applyManualFix" type="button">Set observed fix</button>
+        </details>
+        <label class="field-row">
+          <span>Prune</span>
+          <select id="prunePlotFixesAge">
+            <option value="1">Older than 1 day</option>
+            <option value="3">Older than 3 days</option>
+            <option value="7" selected>Older than 7 days</option>
+            <option value="30">Older than 30 days</option>
+          </select>
+        </label>
+        <div class="plot-actions">
+          <button id="prunePlotFixes" type="button">Prune old fixes</button>
+        </div>
+        <p id="plotStatus" class="plot-status">No plotted fixes.</p>
+      </div>
+      <div class="legend">
+        <div><i class="swatch gps"></i> GPS fix</div>
+        <div><i class="swatch dr"></i> operational DR fallback</div>
+        <div><i class="swatch integrity-dr"></i> independent integrity comparison DR</div>
+        <div><i class="line track"></i> operational track</div>
+        <div><i class="plot-symbol"></i> timed plot fix</div>
+        <div><i class="line heading"></i> single arrow heading/STW</div>
+        <div><i class="line cog"></i> double arrow COG/SOG</div>
+        <div><i class="line tide"></i> triple arrow current/residual</div>
+      </div>
+    </aside>
+
+    <aside id="chartDrawer" class="drawer drawer-right" aria-label="Charts" hidden>
+      <div class="drawer-header">
+        <div>
+          <h2>Charts</h2>
+          <p id="chartStatus">Chart layers and overlays</p>
+        </div>
+      </div>
+      <div class="drawer-section">
+        <h3>Basemap</h3>
+        <label class="choice-row"><input type="radio" name="baseMap" value="Empty"><span>Empty</span></label>
+        <label class="choice-row"><input type="radio" name="baseMap" value="NaturalEarth (offline)"><span>NaturalEarth (offline)</span></label>
+        <label class="choice-row"><input type="radio" name="baseMap" value="OpenStreetMap"><span>OpenStreetMap</span></label>
+        <label class="choice-row"><input type="radio" name="baseMap" value="OpenTopoMap"><span>OpenTopoMap</span></label>
+        <label class="choice-row"><input type="radio" name="baseMap" value="Satellite"><span>Satellite</span></label>
+      </div>
+      <div class="drawer-section">
+        <h3>Overlays</h3>
+        <label class="choice-row"><input id="checkAutoCharts" type="checkbox"><span>Auto Charts</span></label>
+        <label class="choice-row"><input id="checkOpenSeaMap" type="checkbox"><span>OpenSeaMap</span></label>
+      </div>
+    </aside>
+
+    <div id="toast" class="toast" role="status"></div>
+    <div id="cursorPosition" class="cursor-position" aria-live="polite">Cursor --</div>
+    <script src="./leaflet.js"></script>
+    <script src="./protomaps-leaflet.js"></script>
+    <script type="module" src="./app.js?v=0.6.15"></script>
+  </body>
+</html>
