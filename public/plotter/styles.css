@@ -685,6 +685,21 @@ button:active {
   font-weight: 800;
 }
 
+.dr-route-arrow-marker {
+  background: transparent;
+  border: 0;
+}
+
+.dr-route-arrow-marker span {
+  display: block;
+  font-size: 20px;
+  font-weight: 900;
+  line-height: 22px;
+  text-align: center;
+  text-shadow: 0 0 2px #fff, 0 0 4px #fff;
+  transform-origin: 50% 50%;
+}
+
 @media (max-width: 760px) {
   .topbar {
     align-items: stretch;

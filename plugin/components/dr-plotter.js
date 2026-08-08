@@ -10,6 +10,9 @@ const PLUGIN_ID = "signalk-ajrm-marine-dr-plotter";
 const AJRM_MARINE_GPS_INTEGRITY_STATE_PATH = "plugins.ajrmMarineGpsIntegrity.navigationIntegrity";
 const NAVIGATION_REFERENCE_CONTRACT = "ajrm-marine-navigation-reference";
 const NAVIGATION_REFERENCE_SCHEMA_VERSION = 1;
+const AJRM_MARINE_DISPLAY_API_REGISTRY = Symbol.for(
+  "mcdonaldajr.ajrmMarineDisplayApi",
+);
 const DATA_DIRECTORY = path.join(os.homedir(), ".signalk", "plugin-config-data", PLUGIN_ID);
 const PLOT_FIXES_FILE = path.join(DATA_DIRECTORY, "plot-fixes.json");
 const OPERATIONAL_TRACK_FILE = path.join(DATA_DIRECTORY, "operational-track.json");
@@ -254,6 +257,21 @@ module.exports = function ajrmMarineDrPlotter(app, componentOptions = {}) {
         res.json({ ok: true, charts: charts || {} });
       } catch (error) {
         app.error?.(`[${PLUGIN_ID}] chart resource list failed: ${error.stack || error.message}`);
+        res.status(500).json({ ok: false, error: error.message });
+      }
+    });
+
+    router.get("/active-route", async (_req, res) => {
+      try {
+        const displayApi =
+          app.ajrmMarineDisplayApi || globalThis[AJRM_MARINE_DISPLAY_API_REGISTRY];
+        const active =
+          typeof displayApi?.currentRoute === "function"
+            ? await displayApi.currentRoute()
+            : null;
+        res.json({ ok: true, active: active || null });
+      } catch (error) {
+        app.error?.(`[${PLUGIN_ID}] active Display route load failed: ${error.stack || error.message}`);
         res.status(500).json({ ok: false, error: error.message });
       }
     });

@@ -1,5 +1,9 @@
 # AJRM Marine Navigation Integrity (GPS Integrity)
 
+Version `0.8.1` overlays the route selected in AJRM Marine Display on DR
+Plotter and documents the approved heading-plus-speed-through-water inputs used
+during GPS loss.
+
 One Signal K package for source-aware Navigation Reference, GPS/GNSS trust,
 dead reckoning, and the charted DR Plotter. The established Signal K paths and
 DR Plotter data files remain unchanged.
@@ -8,7 +12,7 @@ DR Plotter data files remain unchanged.
 
 ```bash
 cd ~/.signalk
-npm install git+https://github.com/ajrm-marine-suite/signalk-ajrm-marine-gps-integrity.git#v0.8.0 --omit=dev --no-package-lock
+npm install git+https://github.com/ajrm-marine-suite/signalk-ajrm-marine-gps-integrity.git#v0.8.1 --omit=dev --no-package-lock
 sudo systemctl restart signalk
 ```
 
@@ -17,6 +21,21 @@ is now its internal source-selection provider. Select **Open DR Plotter** from
 the status page for the charted dead-reckoning display. Existing standalone
 Navigation Reference settings and DR Plotter fixes, track, and settings are
 loaded from their previous files during migration.
+
+DR Plotter also displays the route currently selected in **AJRM Marine
+Display**. The route is a read-only orange overlay in DR Plotter; opening,
+closing or reversing it remains a Display operation, and changes appear in DR
+Plotter automatically.
+
+During GPS loss the dead-reckoning motion vector uses an explicitly approved
+electronic heading together with speed through water. Configure the exact
+compass/autopilot source under **Navigation Reference → Preferred magnetic
+heading sources** (for the AJRM Simulator and Anthony's current YDEN mapping,
+`YDEN.4`). `navigation.speedOverGround` and
+`navigation.courseOverGroundTrue` normally come from GNSS, so they are not
+treated as independent motion evidence after GNSS is lost. The Simulator keeps
+publishing `navigation.headingMagnetic` and `navigation.speedThroughWater`
+while withdrawing those GNSS-derived values, matching this behaviour.
 
 The monitor tolerates sparse and duplicated position cadence observed in real
 voyages. The default GPS-loss threshold is 60 seconds; positions older than 10

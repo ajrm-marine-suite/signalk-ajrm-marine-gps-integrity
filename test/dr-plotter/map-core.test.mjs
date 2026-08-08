@@ -22,7 +22,7 @@ test("map page uses the standard left-side controls with zoom first", async () =
     readFile(new URL("../../public/plotter/styles.css", import.meta.url), "utf8"),
   ]);
   assert.match(html, /ajrm-map-core\.css\?v=0\.7\.0/);
-  assert.match(html, /type="module" src="\.\/app\.js\?v=0\.6\.15"/);
+  assert.match(html, /type="module" src="\.\/app\.js\?v=0\.8\.1"/);
   assert.match(html, /<header class="topbar" hidden>/);
   assert.match(html, /id="toggleStatus"[^>]+aria-pressed="false"/);
   assert.match(html, /id="statusDrawer" class="drawer drawer-left"/);
@@ -39,6 +39,8 @@ test("map page uses the standard left-side controls with zoom first", async () =
   assert.match(await readFile(new URL("../../public/plotter/ajrm-map-core.mjs", import.meta.url), "utf8"), /export function floatingPanelHeight/);
   assert.match(app, /MapCore\.createActionToolbarControl/);
   assert.match(app, /statusElement:\s*elements\.chartCycleStatus/);
+  assert.match(app, /requestJson\(`\$\{apiBase\}\/active-route`\)/);
+  assert.match(app, /rotation:\s*bearing - 90/);
   assert.match(await readFile(new URL("../../public/plotter/ajrm-map-core.css", import.meta.url), "utf8"), /\.ajrm-map-chart-cycle-status\{/);
   assert.match(await readFile(new URL("../../public/plotter/ajrm-map-core.css", import.meta.url), "utf8"), /\[data-ajrm-map-help\]::after\{/);
   assert.doesNotMatch(app, /position:\s*["']topright["']/);

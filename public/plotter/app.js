@@ -76,6 +76,7 @@ let mapActionToolbar = null;
 let chartResourcesLoaded = false;
 let chartResourcesLoading = null;
 let seamarkLayer;
+let routeLayer;
 let trackLayer;
 let plotFixLayer;
 let overlayLayer;
@@ -95,6 +96,7 @@ let coordinateFormatOverride = normalizeCoordinateFormat(
 );
 let lastCursorEvent = null;
 let manualFixPickMode = false;
+let activeRouteSignature = "none";
 const maxTrackPoints = 7200;
 const maxPlotFixes = 1000;
 const trackStorageKey = "ajrmMarineDrPlotterOperationalTrack";
@@ -167,6 +169,7 @@ function initMap(defaults = {}) {
     Satellite: satellite,
   };
   autoChartGroup = L.layerGroup();
+  routeLayer = L.layerGroup().addTo(map);
   trackLayer = L.layerGroup().addTo(map);
   plotFixLayer = L.layerGroup().addTo(map);
   overlayLayer = L.layerGroup().addTo(map);
@@ -184,6 +187,7 @@ function initMap(defaults = {}) {
   map.on("click", handleMapClick);
   updateControlButtonStates();
   loadChartResources();
+  refreshActiveRoute();
 }
 
 function installCommonChartSelector() {
@@ -524,9 +528,90 @@ function keepChartLayersOnTop() {
     seamarkLayer.setZIndex?.(seamarkLayerZIndex);
     seamarkLayer.bringToFront?.();
   }
+  if (routeLayer) routeLayer.bringToFront?.();
   if (trackLayer) trackLayer.bringToFront?.();
   if (plotFixLayer) plotFixLayer.bringToFront?.();
   if (overlayLayer) overlayLayer.bringToFront?.();
+}
+
+function routeSignature(active) {
+  if (!active) return "none";
+  return [
+    active.resourceId || "draft",
+    active.revision || 0,
+    active.reversed === true ? "reverse" : "forward",
+    active.changedAt || active.openedAt || "",
+  ].join(":");
+}
+
+function routePoints(active) {
+  const coordinates = active?.resource?.feature?.geometry?.coordinates;
+  if (!Array.isArray(coordinates)) return [];
+  return coordinates
+    .filter((coordinate) =>
+      Array.isArray(coordinate) &&
+      Number.isFinite(Number(coordinate[0])) &&
+      Number.isFinite(Number(coordinate[1])))
+    .map(([longitude, latitude]) => [Number(latitude), Number(longitude)]);
+}
+
+function routeArrows(points, maximum = 20) {
+  if (!Array.isArray(points) || points.length < 2) return [];
+  const step = Math.max(1, Math.ceil((points.length - 1) / maximum));
+  const arrows = [];
+  for (let index = 1; index < points.length; index += step) {
+    const start = points[index - 1];
+    const finish = points[index];
+    const bearing = bearingDegrees(
+      { latitude: start[0], longitude: start[1] },
+      { latitude: finish[0], longitude: finish[1] },
+    );
+    arrows.push({
+      position: [(start[0] + finish[0]) / 2, (start[1] + finish[1]) / 2],
+      rotation: bearing - 90,
+    });
+  }
+  return arrows;
+}
+
+function renderActiveRoute(active) {
+  if (!routeLayer) return;
+  const signature = routeSignature(active);
+  if (signature === activeRouteSignature) return;
+  activeRouteSignature = signature;
+  routeLayer.clearLayers();
+  const points = routePoints(active);
+  if (points.length < 2) return;
+  const color = "#ff7a00";
+  const name = active?.resource?.name || "Unnamed route";
+  L.polyline(points, {
+    color,
+    weight: 4,
+    opacity: 0.9,
+    interactive: true,
+  })
+    .bindTooltip(`Route: ${name}`, { sticky: true })
+    .addTo(routeLayer);
+  for (const arrow of routeArrows(points)) {
+    const icon = L.divIcon({
+      className: "dr-route-arrow-marker",
+      html: `<span style="color:${color};transform:rotate(${arrow.rotation}deg)">➤</span>`,
+      iconSize: [22, 22],
+      iconAnchor: [11, 11],
+    });
+    L.marker(arrow.position, { icon, interactive: false }).addTo(routeLayer);
+  }
+  keepChartLayersOnTop();
+}
+
+async function refreshActiveRoute() {
+  if (!map) return;
+  try {
+    const data = await requestJson(`${apiBase}/active-route`);
+    renderActiveRoute(data.active || null);
+  } catch (_error) {
+    // Display is optional. Retain the last route through a transient failure.
+  }
 }
 
 function renderIntegrity(state) {
@@ -1557,3 +1642,4 @@ elements.openSeaMap.addEventListener("change", () => setOverlay(seamarkLayer, el
 
 refreshStatus();
 setInterval(refreshStatus, 1000);
+setInterval(refreshActiveRoute, 5000);

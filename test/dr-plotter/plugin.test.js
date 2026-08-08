@@ -73,7 +73,7 @@ test("status declares that AIS targets are intentionally absent", async () => {
   assert.equal(projection.value.plotFixPersistence.serverSide, true);
   const openApi = plugin.getOpenApi();
   assert.equal(openApi.openapi, "3.0.3");
-  for (const routePath of ["/status", "/settings", "/plot-fixes", "/track", "/fixes", "/charts"]) {
+  for (const routePath of ["/status", "/settings", "/plot-fixes", "/track", "/fixes", "/charts", "/active-route"]) {
     assert.ok(openApi.paths[routePath], `${routePath} is documented`);
   }
   const stopResult = plugin.stop();
@@ -82,6 +82,38 @@ test("status declares that AIS targets are intentionally absent", async () => {
   const stoppedProjection = messages.at(-1).updates[0].values[0];
   assert.equal(stoppedProjection.path, "plugins.ajrmMarineDrPlotter");
   assert.equal(stoppedProjection.value, null);
+});
+
+test("exposes the route selected in AJRM Marine Display", async () => {
+  const active = {
+    resourceId: "route-1",
+    revision: 3,
+    resource: {
+      name: "Test route",
+      feature: { geometry: { type: "LineString", coordinates: [[-5.5, 56.2], [-5.4, 56.3]] } },
+    },
+  };
+  const plugin = pluginFactory({
+    ajrmMarineDisplayApi: {
+      async currentRoute() {
+        return active;
+      },
+    },
+    handleMessage() {},
+  });
+  let handler;
+  plugin.registerWithRouter({
+    get(routePath, routeHandler) {
+      if (routePath === "/active-route") handler = routeHandler;
+    },
+    put() {},
+    post() {},
+    delete() {},
+  });
+  let body;
+  await handler({}, { json(value) { body = value; } });
+  assert.equal(body.ok, true);
+  assert.deepEqual(body.active, active);
 });
 
 test("all mutating routes require Signal K write access", async () => {

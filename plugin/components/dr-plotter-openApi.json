@@ -2,8 +2,8 @@
   "openapi": "3.0.3",
   "info": {
     "title": "AJRM Marine DR Plotter API",
-    "version": "0.7.2",
-    "description": "Read navigation plotting state and manage persisted DR tracks and navigator fixes."
+    "version": "0.8.1",
+    "description": "Read navigation plotting state, the active Display route, and manage persisted DR tracks and navigator fixes."
   },
   "servers": [
     {
@@ -169,6 +169,19 @@
     "/charts": {
       "get": {
         "summary": "List Signal K chart resources",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "500": {
+            "$ref": "#/components/responses/Failure"
+          }
+        }
+      }
+    },
+    "/active-route": {
+      "get": {
+        "summary": "Read the route currently selected in AJRM Marine Display",
         "responses": {
           "200": {
             "$ref": "#/components/responses/Success"

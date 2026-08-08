@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "AJRM Marine Navigation Integrity API",
-    "version": "0.8.0",
+    "version": "0.8.1",
     "description": "Read navigation-reference and integrity status, use the DR Plotter, and perform operator-authorised integrity actions."
   },
   "servers": [
@@ -16,6 +16,9 @@
     },
     "/plotter/status": {
       "get": { "summary": "Read DR Plotter status", "responses": { "200": { "description": "DR Plotter status" } } }
+    },
+    "/plotter/active-route": {
+      "get": { "summary": "Read the route selected in AJRM Marine Display", "responses": { "200": { "description": "Selected route or null" } } }
     },
     "/plotter/plot-fixes": {
       "get": { "summary": "List persisted DR plot fixes", "responses": { "200": { "description": "Plot fixes" } } },

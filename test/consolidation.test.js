@@ -33,6 +33,7 @@ test("combined package mounts Navigation Reference and DR Plotter", async () => 
   assert.ok(routes.includes("GET /reference/status"));
   assert.ok(routes.includes("GET /plotter/status"));
   assert.ok(routes.includes("GET /plotter/plot-fixes"));
+  assert.ok(routes.includes("GET /plotter/active-route"));
   assert.equal(typeof app.ajrmMarineNavigationReferenceApi?.setBiteOverride, "function");
 
   await plugin.stop();
