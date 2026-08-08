@@ -1,3 +1,7 @@
+/**
+ * Implements the navigation integrity responsibilities of the AJRM Marine Navigation Integrity Signal K server.
+ */
+
 "use strict";
 
 const EARTH_RADIUS_M = 6371008.8;

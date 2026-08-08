@@ -1,3 +1,7 @@
+/**
+ * Implements the DR plotter responsibilities of the AJRM Marine Navigation Integrity Signal K server.
+ */
+
 "use strict";
 
 const fs = require("node:fs");

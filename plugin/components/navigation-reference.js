@@ -1,3 +1,7 @@
+/**
+ * Implements the navigation reference responsibilities of the AJRM Marine Navigation Integrity Signal K server.
+ */
+
 "use strict";
 
 const packageInfo = require("../../package.json");

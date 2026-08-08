@@ -1,4 +1,8 @@
-import * as MapCore from "./ajrm-map-core.mjs?v=0.7.0";
+/**
+ * Implements the app responsibilities of the AJRM Marine Navigation Integrity browser application.
+ */
+
+import * as MapCore from "./ajrm-map-core.mjs?v=0.7.1";
 
 const apiBase = "/plugins/signalk-ajrm-marine-gps-integrity/plotter";
 const gpsIntegrityApiBase = "/plugins/signalk-ajrm-marine-gps-integrity";

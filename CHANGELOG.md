@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.8.3
+
+- Add concise purpose headers to every maintained runtime module so its role is
+  clear before reading implementation details.
+- Add a regression check that prevents new source modules from being introduced
+  without a module-purpose header.
+- Align OpenAPI metadata with the package release and test that the versions do
+  not drift apart again.
+- Preserve existing runtime contracts and behaviour following a suite-wide
+  maintainability and Signal K integration review.
+- Update the pinned shared map shell to 0.7.1 and refresh DR Plotter asset cache
+  keys.
+
 ## 0.8.2
 
 - Retain the last valid position for the WMM magnetic-variation calculation

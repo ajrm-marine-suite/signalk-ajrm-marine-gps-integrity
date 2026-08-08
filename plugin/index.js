@@ -1,3 +1,7 @@
+/**
+ * Signal K server entry point for AJRM Marine Navigation Integrity; registers lifecycle, subscriptions, routes, and status.
+ */
+
 "use strict";
 
 const fs = require("node:fs");

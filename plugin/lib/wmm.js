@@ -1,3 +1,7 @@
+/**
+ * Implements the WMM responsibilities of the AJRM Marine Navigation Integrity Signal K server.
+ */
+
 "use strict";
 
 const geomagnetism = require("geomagnetism");

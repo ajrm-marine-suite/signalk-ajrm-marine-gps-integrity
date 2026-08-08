@@ -1,3 +1,7 @@
+/**
+ * Browser entry point for AJRM Marine Navigation Integrity; binds operator controls and renders server state.
+ */
+
 const apiBase = "/plugins/signalk-ajrm-marine-gps-integrity";
 const trust = document.querySelector("#trust");
 const subtitle = document.querySelector("#subtitle");

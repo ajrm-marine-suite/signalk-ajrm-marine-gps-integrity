@@ -12,7 +12,7 @@ DR Plotter data files remain unchanged.
 
 ```bash
 cd ~/.signalk
-npm install git+https://github.com/ajrm-marine-suite/signalk-ajrm-marine-gps-integrity.git#v0.8.2 --omit=dev --no-package-lock
+npm install git+https://github.com/ajrm-marine-suite/signalk-ajrm-marine-gps-integrity.git#v0.8.3 --omit=dev --no-package-lock
 sudo systemctl restart signalk
 ```
 
