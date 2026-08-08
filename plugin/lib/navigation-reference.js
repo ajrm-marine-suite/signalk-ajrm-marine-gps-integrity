@@ -164,6 +164,7 @@ function createNavigationReferenceResolver(inputOptions = {}) {
         nowMs,
         options.variationPositionMaxAgeMs,
         "position-for-magnetic-model",
+        false,
       );
     const magneticVariation = calculateVariation(variationPosition, nowMs);
     const bowHeadingTrue = selectBowHeading({
@@ -387,12 +388,14 @@ function createNavigationReferenceResolver(inputOptions = {}) {
     nowMs,
     maximumAgeMs = options.variationPositionMaxAgeMs,
     method = "position-for-magnetic-model",
+    requireCurrentGnssUsable = true,
   ) {
     let candidates = positionCandidates(
       nowMs,
       maximumAgeMs,
       "samples",
       false,
+      requireCurrentGnssUsable,
     );
     if (candidates.length === 0) {
       candidates = positionCandidates(
@@ -400,6 +403,7 @@ function createNavigationReferenceResolver(inputOptions = {}) {
         Math.min(maximumAgeMs, options.aisFallbackMaxAgeMs),
         "aisFallbackSamples",
         true,
+        requireCurrentGnssUsable,
       );
     }
     const selected = chooseCandidate(
@@ -422,6 +426,7 @@ function createNavigationReferenceResolver(inputOptions = {}) {
     maximumAgeMs,
     sampleStoreName,
     fallback,
+    requireCurrentGnssUsable = true,
   ) {
     const candidates = [];
     for (const source of sources.values()) {
@@ -432,7 +437,10 @@ function createNavigationReferenceResolver(inputOptions = {}) {
         maximumAgeMs,
       );
       const quality = gnssQualityEvidence(source, nowMs, options);
-      if (position && quality.usable !== false) {
+      if (
+        position
+        && (!requireCurrentGnssUsable || quality.usable !== false)
+      ) {
         candidates.push({
           source: source.source,
           sample: position,
@@ -490,6 +498,9 @@ function createNavigationReferenceResolver(inputOptions = {}) {
         options.preferredTrueHeadingSources.includes(source.source);
       const explicitlyIndependent =
         options.independentTrueHeadingSources.includes(source.source);
+      const directAutomaticallyEligible =
+        options.preferredTrueHeadingSources.length === 0
+        && !sourceHasGnssEvidence(source);
       const selectedGnssHeadingAllowed =
         options.allowGnssTrueHeading
         && selectedGnssSource !== null
@@ -497,6 +508,7 @@ function createNavigationReferenceResolver(inputOptions = {}) {
       const directExplicitlyAllowed =
         explicitlyPreferred
         || explicitlyIndependent
+        || directAutomaticallyEligible
         || selectedGnssHeadingAllowed;
       if (direct && directExplicitlyAllowed) {
         directCandidates.push({
@@ -516,9 +528,20 @@ function createNavigationReferenceResolver(inputOptions = {}) {
       );
       const magneticExplicitlyPreferred =
         options.preferredMagneticHeadingSources.includes(source.source);
-      if (magnetic && magneticVariation && magneticExplicitlyPreferred) {
-        const explicitlyIndependent =
-          options.independentMagneticHeadingSources.includes(source.source);
+      const magneticExplicitlyIndependent =
+        options.independentMagneticHeadingSources.includes(source.source);
+      const magneticAutomaticallyEligible =
+        options.preferredMagneticHeadingSources.length === 0
+        && !sourceHasGnssEvidence(source);
+      if (
+        magnetic
+        && magneticVariation
+        && (
+          magneticExplicitlyPreferred
+          || magneticExplicitlyIndependent
+          || magneticAutomaticallyEligible
+        )
+      ) {
         magneticCandidates.push({
           source: source.source,
           sample: magnetic,
@@ -526,7 +549,7 @@ function createNavigationReferenceResolver(inputOptions = {}) {
           method: "magnetic-heading-plus-wmm",
           gpsDependent:
             sourceHasGnssEvidence(source)
-            && !explicitlyIndependent,
+            && !magneticExplicitlyIndependent,
           rank: 1,
         });
       }

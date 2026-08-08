@@ -1,8 +1,8 @@
 # AJRM Marine Navigation Integrity (GPS Integrity)
 
-Version `0.8.1` overlays the route selected in AJRM Marine Display on DR
-Plotter and documents the approved heading-plus-speed-through-water inputs used
-during GPS loss.
+Version `0.8.2` automatically selects suitable heading and water-speed sensors
+and retains the last valid position solely for magnetic-variation calculation,
+so heading/STW dead reckoning continues when GNSS reports no fix.
 
 One Signal K package for source-aware Navigation Reference, GPS/GNSS trust,
 dead reckoning, and the charted DR Plotter. The established Signal K paths and
@@ -12,7 +12,7 @@ DR Plotter data files remain unchanged.
 
 ```bash
 cd ~/.signalk
-npm install git+https://github.com/ajrm-marine-suite/signalk-ajrm-marine-gps-integrity.git#v0.8.1 --omit=dev --no-package-lock
+npm install git+https://github.com/ajrm-marine-suite/signalk-ajrm-marine-gps-integrity.git#v0.8.2 --omit=dev --no-package-lock
 sudo systemctl restart signalk
 ```
 
@@ -27,15 +27,22 @@ Display**. The route is a read-only orange overlay in DR Plotter; opening,
 closing or reversing it remains a Display operation, and changes appear in DR
 Plotter automatically.
 
-During GPS loss the dead-reckoning motion vector uses an explicitly approved
-electronic heading together with speed through water. Configure the exact
-compass/autopilot source under **Navigation Reference → Preferred magnetic
-heading sources** (for the AJRM Simulator and Anthony's current YDEN mapping,
-`YDEN.4`). `navigation.speedOverGround` and
+During GPS loss the dead-reckoning motion vector uses electronic heading
+together with speed through water. By default Navigation Reference
+automatically selects available non-GNSS heading sensors and an available
+speed-through-water sensor. The preferred-source fields are optional priority
+overrides for boats with multiple sensors; they do not need to be filled in for
+the normal case. Sources declared as calculated remain excluded, and a heading
+source carrying GNSS evidence is not treated as independent unless explicitly
+configured. `navigation.speedOverGround` and
 `navigation.courseOverGroundTrue` normally come from GNSS, so they are not
 treated as independent motion evidence after GNSS is lost. The Simulator keeps
 publishing `navigation.headingMagnetic` and `navigation.speedThroughWater`
 while withdrawing those GNSS-derived values, matching this behaviour.
+Navigation Integrity retains the last valid position only for the local WMM
+magnetic-variation calculation when GNSS subsequently reports no fix. It does
+not treat that retained position as a live navigation fix. This lets fresh
+magnetic heading and speed through water continue to drive DR during GPS loss.
 
 The monitor tolerates sparse and duplicated position cadence observed in real
 voyages. The default GPS-loss threshold is 60 seconds; positions older than 10

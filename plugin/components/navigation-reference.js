@@ -34,7 +34,7 @@ module.exports = function ajrmMarineNavigationReference(app, componentOptions = 
       ),
       preferredTrueHeadingSources: sourceList(
         "Preferred direct true-heading sources",
-        "Exact direct true-heading source IDs in priority order. Unlisted producers are rejected. A preferred source remains GPS-dependent unless its exact ID is also declared independent.",
+        "Optional exact source IDs in priority order. Leave empty to choose automatically from available non-GNSS sensor sources. When set, only listed or explicitly independent sources are used. A preferred source remains GPS-dependent unless its exact ID is also declared independent.",
       ),
       independentTrueHeadingSources: sourceList(
         "Verified independent true-heading sources",
@@ -42,7 +42,7 @@ module.exports = function ajrmMarineNavigationReference(app, componentOptions = 
       ),
       preferredMagneticHeadingSources: sourceList(
         "Preferred magnetic-heading sources",
-        "Exact magnetic-compass source IDs in priority order, for example the TP32 NMEA 2000 source. Unlisted magnetic-heading producers are rejected.",
+        "Optional exact magnetic-compass source IDs in priority order. Leave empty to choose automatically from available non-GNSS sensor sources. When set, only listed or explicitly independent sources are used.",
       ),
       independentMagneticHeadingSources: sourceList(
         "GNSS-associated magnetic-heading sources with independent compass evidence",
@@ -50,7 +50,7 @@ module.exports = function ajrmMarineNavigationReference(app, componentOptions = 
       ),
       preferredSpeedThroughWaterSources: sourceList(
         "Preferred speed-through-water sources",
-        "Water-speed source IDs in priority order.",
+        "Optional water-speed source IDs in priority order. Leave empty to choose automatically from available sensor sources.",
       ),
       independentCurrentSources: sourceList(
         "Independent current sources",

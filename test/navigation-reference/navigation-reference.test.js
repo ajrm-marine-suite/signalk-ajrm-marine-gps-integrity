@@ -228,8 +228,11 @@ test("an explicitly independent integrated compass source is not GPS-dependent",
   assert.equal(state.bowHeadingTrue.gpsDependent, false);
 });
 
-test("rejects an unlisted direct true-heading calculator, including north", () => {
-  const resolver = resolverForTests({ headingAcquireSeconds: 0 });
+test("rejects a declared calculated direct true-heading producer, including north", () => {
+  const resolver = resolverForTests({
+    headingAcquireSeconds: 0,
+    calculatedSources: ["unlisted-heading-calculator"],
+  });
   const now = Date.parse("2026-07-16T09:06:13.000Z");
   ingestGnss(resolver, now, { course: 1, speed: 2 });
   ingest(
@@ -686,6 +689,57 @@ test("keeps live position separate from the longer-lived WMM model position", ()
   assert.equal(state.magneticVariation.positionSource, "YDEN.43");
 });
 
+test("retains the last valid position for WMM when GNSS reports no fix", () => {
+  const resolver = resolverForTests({
+    headingAcquireSeconds: 0,
+    variationPositionMaxAgeSeconds: 3600,
+  });
+  const now = Date.parse("2026-08-08T10:42:35.000Z");
+  ingest(
+    resolver,
+    "YDEN.2",
+    now,
+    [
+      {
+        path: "navigation.position",
+        value: { latitude: 56.21523, longitude: -5.56059 },
+      },
+      { path: "navigation.courseOverGroundTrue", value: 4.71 },
+      { path: "navigation.speedOverGround", value: 3.93 },
+      { path: "navigation.gnss.methodQuality", value: "GNSS fix" },
+    ],
+  );
+
+  ingest(
+    resolver,
+    "YDEN.2",
+    now + SECOND,
+    [{ path: "navigation.gnss.methodQuality", value: "No fix" }],
+  );
+  ingest(
+    resolver,
+    "YDEN.4",
+    now + SECOND,
+    [{ path: "navigation.headingMagnetic", value: 4.709 }],
+  );
+  ingest(
+    resolver,
+    "YDEN.35",
+    now + SECOND,
+    [{ path: "navigation.speedThroughWater", value: 5.14444 }],
+  );
+
+  const state = resolver.resolve(now + SECOND);
+  assert.equal(state.position, null);
+  assert.equal(state.groundTrack, null);
+  assert.equal(state.gnss.fixValid, false);
+  assert.equal(state.bowHeadingTrue.source, "YDEN.4");
+  assert.equal(state.bowHeadingTrue.method, "magnetic-heading-plus-wmm");
+  assert.equal(state.magneticVariation.positionSource, "YDEN.2");
+  assert.equal(state.throughWater.speedThroughWater.source, "YDEN.35");
+  assert.equal(state.throughWater.headingTrue.source, "YDEN.4");
+});
+
 test("a separate direct true compass outranks magnetic conversion", () => {
   const resolver = resolverForTests({
     headingAcquireSeconds: 0,
@@ -714,8 +768,11 @@ test("a separate direct true compass outranks magnetic conversion", () => {
   assert.equal(state.bowHeadingTrue.method, "direct-true-heading");
 });
 
-test("rejects an unlisted magnetic-heading producer", () => {
-  const resolver = resolverForTests({ headingAcquireSeconds: 0 });
+test("rejects a declared calculated magnetic-heading producer", () => {
+  const resolver = resolverForTests({
+    headingAcquireSeconds: 0,
+    calculatedSources: ["unlisted-magnetic-calculator"],
+  });
   const now = Date.parse("2026-07-16T09:07:30.000Z");
   ingestGnss(resolver, now, { course: 1, speed: 2 });
   ingest(

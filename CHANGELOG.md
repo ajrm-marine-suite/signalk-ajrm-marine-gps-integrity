@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.2
+
+- Retain the last valid position for the WMM magnetic-variation calculation
+  after GNSS explicitly reports no fix, without exposing it as a live position.
+- Keep fresh magnetic heading and speed through water available to dead
+  reckoning throughout a GPS outage instead of falling back to current-only
+  propagation.
+- Automatically select available non-GNSS heading and speed-through-water
+  sensors when preferred-source lists are empty; configured lists remain
+  explicit priority overrides.
+
 ## 0.7.0
 
 - Publish OpenAPI for all current HTTP routes and require Signal K read/write
