@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.5
+
+- Disable DR Plotter's chart-cycle button and keyboard shortcut whenever Auto
+  Charts is off.
+- Update the shared map shell to 0.7.3.
+
 ## 0.8.4
 
 - Give DR Plotter the shared COG-oriented own-vessel look-ahead used by Display.

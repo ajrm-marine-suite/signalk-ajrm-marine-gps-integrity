@@ -5,7 +5,7 @@
  */
 
 export const MAP_CORE_CONTRACT = "ajrm-marine-map-shell-v1";
-export const MAP_CORE_VERSION = "0.7.2";
+export const MAP_CORE_VERSION = "0.7.3";
 export const AUTO_CHARTS_NAME = "Auto Charts";
 export const OPEN_SEA_MAP_NAME = "OpenSeaMap";
 export const CHART_FOLDER_API_BASE = "/plugins/signalk-charts-provider-simple";
@@ -393,6 +393,7 @@ export function createChartCycleControl({
 	L,
 	map,
 	getCharts,
+	isEnabled = () => true,
 	onChange = () => {},
 	position = "topleft",
 	document = globalThis.document,
@@ -420,10 +421,13 @@ export function createChartCycleControl({
 	};
 	const syncButton = () => {
 		if (!button) return;
+		const enabled = isEnabled() !== false;
 		const candidates = state.getCandidates(getCharts(), map);
-		button.disabled = candidates.length < 2;
+		button.disabled = !enabled || candidates.length < 2;
 		const shortcut = chartCycleShortcut(storage);
-		const help = candidates.length < 2
+		const help = !enabled
+			? "Turn on Auto Charts to cycle charts"
+			: candidates.length < 2
 			? "No overlapping charts to cycle"
 			: state.manualChartId
 				? `Cycle overlapping charts [${shortcut}] (${candidates.findIndex((chart) => chartId(chart) === state.manualChartId) + 1} of ${candidates.length})`
@@ -432,6 +436,7 @@ export function createChartCycleControl({
 		button.setAttribute("aria-label", help);
 	};
 	const cycle = () => {
+		if (isEnabled() === false) return null;
 		const candidates = state.getCandidates(getCharts(), map);
 		if (candidates.length < 2) return null;
 		const selected = state.cycle(getCharts(), map);
@@ -482,6 +487,7 @@ export function createChartCycleControl({
 			return selected;
 		},
 		cycle(charts = getCharts(), targetMap = map, positionValue) {
+			if (isEnabled() === false) return null;
 			const selected = state.cycle(charts, targetMap, positionValue);
 			syncButton();
 			return selected;

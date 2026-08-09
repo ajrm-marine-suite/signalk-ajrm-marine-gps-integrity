@@ -2,7 +2,7 @@
  * Implements the app responsibilities of the AJRM Marine Navigation Integrity browser application.
  */
 
-import * as MapCore from "./ajrm-map-core.mjs?v=0.7.2";
+import * as MapCore from "./ajrm-map-core.mjs?v=0.7.3";
 
 const apiBase = "/plugins/signalk-ajrm-marine-gps-integrity/plotter";
 const gpsIntegrityApiBase = "/plugins/signalk-ajrm-marine-gps-integrity";
@@ -216,6 +216,7 @@ function installCommonChartSelector() {
     L,
     map,
     getCharts: () => autoChartList,
+		isEnabled: () => map.hasLayer(autoChartGroup),
     onChange: updateAutoChart,
     statusElement: elements.chartCycleStatus,
   }).addTo();
@@ -263,7 +264,10 @@ function setOverlay(layer, enabled, storageKey) {
   if (enabled) layer.addTo(map);
   else map.removeLayer(layer);
   localStorage.setItem(storageKey, String(enabled));
-  if (layer === autoChartGroup) elements.autoCharts.checked = enabled;
+  if (layer === autoChartGroup) {
+    elements.autoCharts.checked = enabled;
+    chartCycle?.update();
+  }
   if (layer === seamarkLayer) elements.openSeaMap.checked = enabled;
   updateAutoChart();
   keepChartLayersOnTop();

@@ -1,5 +1,8 @@
 # AJRM Marine Navigation Integrity (GPS Integrity)
 
+Version `0.8.5` disables chart cycling while Auto Charts is off, consistently
+with the other suite map applications.
+
 Version `0.8.4` adds the suite's shared COG-oriented map following to DR
 Plotter. It leaves 66% of the visible chart ahead and 34% behind by default,
 shares the browser setting with Display, and centres the vessel when COG is
@@ -13,7 +16,7 @@ DR Plotter data files remain unchanged.
 
 ```bash
 cd ~/.signalk
-npm install git+https://github.com/ajrm-marine-suite/signalk-ajrm-marine-gps-integrity.git#v0.8.4 --omit=dev --no-package-lock
+npm install git+https://github.com/ajrm-marine-suite/signalk-ajrm-marine-gps-integrity.git#v0.8.5 --omit=dev --no-package-lock
 sudo systemctl restart signalk
 ```
 
