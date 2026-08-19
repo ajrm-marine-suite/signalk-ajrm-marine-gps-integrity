@@ -1,6 +1,7 @@
 # AJRM Marine Navigation Integrity (GPS Integrity)
 
-Version `0.8.6` adds a package-root Webapps icon and disables chart cycling while Auto Charts is off, consistently
+Version `0.8.7` serves the Webapps icon from Signal K's public webapp URL and
+verifies that URL during tests. Version `0.8.6` disables chart cycling while Auto Charts is off, consistently
 with the other suite map applications.
 
 Version `0.8.4` adds the suite's shared COG-oriented map following to DR
@@ -16,7 +17,7 @@ DR Plotter data files remain unchanged.
 
 ```bash
 cd ~/.signalk
-npm install git+https://github.com/ajrm-marine-suite/signalk-ajrm-marine-gps-integrity.git#v0.8.6 --omit=dev --no-package-lock
+npm install git+https://github.com/ajrm-marine-suite/signalk-ajrm-marine-gps-integrity.git#v0.8.7 --omit=dev --no-package-lock
 sudo systemctl restart signalk
 ```
 

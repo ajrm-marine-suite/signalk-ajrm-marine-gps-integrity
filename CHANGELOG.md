@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.7
+
+- Serve the Navigation Integrity Webapps icon from the public webapp URL and
+  verify the declared icon resolves during tests.
+
 ## 0.8.6
 
 - Ship a package-root 120-pixel PNG icon so Navigation Integrity is identified
