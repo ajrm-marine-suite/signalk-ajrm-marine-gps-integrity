@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.10
+
+- Preserve the shared chart controller's intentional empty selection so DR
+  Plotter chart cycling genuinely exposes the basemap-only step.
+
 ## 0.8.9
 
 - Update DR Plotter to shared map shell 0.7.9 so chart cycling includes an

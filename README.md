@@ -1,6 +1,7 @@
 # AJRM Marine Navigation Integrity (GPS Integrity)
 
-Version `0.8.9` updates DR Plotter chart cycling to include an explicit
+Version `0.8.10` fixes DR Plotter so the basemap-only chart-cycle step actually
+removes the active automatic chart. Version `0.8.9` updates DR Plotter chart cycling to include an explicit
 basemap-only step. Version `0.8.8` packages the icon for both Signal K's App Store and installed
 Webapps catalogue and verifies both files. Version `0.8.6` disables chart cycling while Auto Charts is off, consistently
 with the other suite map applications.
@@ -18,7 +19,7 @@ DR Plotter data files remain unchanged.
 
 ```bash
 cd ~/.signalk
-npm install git+https://github.com/ajrm-marine-suite/signalk-ajrm-marine-gps-integrity.git#v0.8.9 --omit=dev --no-package-lock
+npm install git+https://github.com/ajrm-marine-suite/signalk-ajrm-marine-gps-integrity.git#v0.8.10 --omit=dev --no-package-lock
 sudo systemctl restart signalk
 ```
 

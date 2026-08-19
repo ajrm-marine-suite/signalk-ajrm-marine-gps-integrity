@@ -1,6 +1,6 @@
 {
   "name": "signalk-ajrm-marine-gps-integrity",
-  "version": "0.8.9",
+  "version": "0.8.10",
   "description": "Source-aware navigation reference, GNSS integrity monitor, dead reckoning, and DR Plotter for AJRM Marine Suite.",
   "main": "plugin/index.js",
   "scripts": {
