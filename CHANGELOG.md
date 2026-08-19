@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.9
+
+- Update DR Plotter to shared map shell 0.7.9 so chart cycling includes an
+  explicit basemap-only step before returning to automatic selection.
+
 ## 0.8.8
 
 - Package the Navigation Integrity icon at both the npm root for App Store
