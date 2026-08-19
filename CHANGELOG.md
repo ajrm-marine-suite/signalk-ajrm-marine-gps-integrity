@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.8
+
+- Package the Navigation Integrity icon at both the npm root for App Store
+  metadata and the public webapp root for the installed Webapps catalogue.
+
 ## 0.8.7
 
 - Serve the Navigation Integrity Webapps icon from the public webapp URL and
