@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.6
+
+- Ship a package-root 120-pixel PNG icon so Navigation Integrity is identified
+  correctly on the Signal K Webapps page.
+
 ## 0.8.5
 
 - Disable DR Plotter's chart-cycle button and keyboard shortcut whenever Auto
