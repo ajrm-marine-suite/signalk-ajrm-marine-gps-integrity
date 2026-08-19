@@ -6,7 +6,7 @@
     <title>AJRM Marine DR Plotter</title>
     <link rel="stylesheet" href="./leaflet.css">
     <link rel="stylesheet" href="./ajrm-map-core.css?v=0.7.9">
-    <link rel="stylesheet" href="./styles.css?v=0.8.10">
+    <link rel="stylesheet" href="./styles.css?v=0.8.11">
   </head>
   <body>
     <div id="map" class="map" aria-label="Dead-reckoning chart"></div>
@@ -46,19 +46,17 @@
       </div>
     </header>
 
-    <div class="map-status-stack">
-      <div
-        id="gpsStatusIndicator"
-        class="ajrm-marine-gps-status ajrm-marine-gps-status-unknown"
-        role="status"
-        aria-live="polite"
-        title="GPS status unknown"
-      >
-        <span class="ajrm-marine-gps-status-led" aria-hidden="true"></span>
-        <span id="gpsStatusText">GPS ?</span>
-      </div>
-      <div id="chartCycleStatus" class="ajrm-map-chart-cycle-status" role="status" aria-live="polite" hidden></div>
+    <div
+      id="gpsStatusIndicator"
+      class="ajrm-marine-gps-status ajrm-marine-gps-status-unknown gps-status-position"
+      role="status"
+      aria-live="polite"
+      title="GPS status unknown"
+    >
+      <span class="ajrm-marine-gps-status-led" aria-hidden="true"></span>
+      <span id="gpsStatusText">GPS ?</span>
     </div>
+    <div id="chartCycleStatus" class="ajrm-map-chart-cycle-status" role="status" aria-live="polite" hidden></div>
 
     <aside id="statusDrawer" class="drawer drawer-left" aria-label="Navigation integrity">
       <div class="drawer-header">
@@ -211,6 +209,6 @@
     <div id="cursorPosition" class="cursor-position" aria-live="polite">Cursor --</div>
     <script src="./leaflet.js"></script>
     <script src="./protomaps-leaflet.js"></script>
-    <script type="module" src="./app.js?v=0.8.10"></script>
+    <script type="module" src="./app.js?v=0.8.11"></script>
   </body>
 </html>

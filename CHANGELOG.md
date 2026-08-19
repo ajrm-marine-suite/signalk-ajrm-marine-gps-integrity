@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.11
+
+- Move the DR Plotter GPS status badge from the top-centre chart-message area
+  to the upper right, below the Navigation Integrity return control.
+- Give the chart-cycle banner a wider responsive text area so long chart names
+  do not wrap into a narrow column.
+
 ## 0.8.10
 
 - Preserve the shared chart controller's intentional empty selection so DR

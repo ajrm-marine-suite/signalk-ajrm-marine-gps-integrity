@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "AJRM Marine DR Plotter API",
-    "version": "0.8.10",
+    "version": "0.8.11",
     "description": "Read navigation plotting state, the active Display route, and manage persisted DR tracks and navigator fixes."
   },
   "servers": [

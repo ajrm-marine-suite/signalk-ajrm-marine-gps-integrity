@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "AJRM Marine Navigation Integrity API",
-    "version": "0.8.10",
+    "version": "0.8.11",
     "description": "Read navigation-reference and integrity status, use the DR Plotter, and perform operator-authorised integrity actions."
   },
   "servers": [

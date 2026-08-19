@@ -262,12 +262,15 @@ test("web app includes Display-style GPS status LED", () => {
   const css = fs.readFileSync(path.join(__dirname, "..", "..", "public", "plotter", "styles.css"), "utf8");
 
   assert.match(html, /id="gpsStatusIndicator"/);
+  assert.match(html, /gps-status-position/);
   assert.match(html, /ajrm-marine-gps-status-led/);
   assert.match(app, /function updateGpsStatusIndicator/);
   assert.match(app, /GPS OK/);
   assert.match(app, /GPS LOST/);
   assert.match(css, /\.ajrm-marine-gps-status-ok \.ajrm-marine-gps-status-led/);
   assert.match(css, /\.ajrm-marine-gps-status-alert \.ajrm-marine-gps-status-led/);
+  assert.match(css, /\.gps-status-position\s*\{[^}]*top:\s*62px;[^}]*right:\s*12px/s);
+  assert.doesNotMatch(css, /\.map-status-stack\s*\{/);
 });
 
 test("web app hides the independent DR uncertainty circle", () => {

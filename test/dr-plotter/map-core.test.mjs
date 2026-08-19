@@ -22,12 +22,13 @@ test("map page uses the standard left-side controls with zoom first", async () =
     readFile(new URL("../../public/plotter/styles.css", import.meta.url), "utf8"),
   ]);
   assert.match(html, /ajrm-map-core\.css\?v=0\.7\.9/);
-  assert.match(html, /type="module" src="\.\/app\.js\?v=0\.8\.10"/);
+  assert.match(html, /type="module" src="\.\/app\.js\?v=0\.8\.11"/);
   assert.match(html, /<header class="topbar" hidden>/);
   assert.match(html, /id="toggleStatus"[^>]+aria-pressed="false"/);
   assert.match(html, /id="statusDrawer" class="drawer drawer-left"/);
   assert.doesNotMatch(html, /id="statusDrawer" class="[^"]*\bopen\b/);
   assert.match(html, /id="chartCycleStatus" class="ajrm-map-chart-cycle-status"[^>]+hidden/);
+  assert.match(html, /id="gpsStatusIndicator"[\s\S]*gps-status-position/);
   assert.match(css, /\.drawer-left\s*\{[^}]*left:\s*52px/s);
   assert.match(await readFile(new URL("../../public/plotter/ajrm-map-core.css", import.meta.url), "utf8"), /\.ajrm-map-actions\{display:flex;flex-direction:column;gap:10px/);
   assert.match(await readFile(new URL("../../public/plotter/ajrm-map-core.css", import.meta.url), "utf8"), /\.ajrm-map-panel\{[^}]*overflow-x:hidden;[^}]*touch-action:pan-y/);
@@ -49,6 +50,7 @@ test("map page uses the standard left-side controls with zoom first", async () =
   assert.match(app, /requestJson\(`\$\{apiBase\}\/active-route`\)/);
   assert.match(app, /rotation:\s*bearing - 90/);
   assert.match(await readFile(new URL("../../public/plotter/ajrm-map-core.css", import.meta.url), "utf8"), /\.ajrm-map-chart-cycle-status\{/);
+  assert.match(css, /\.ajrm-map-chart-cycle-status\s*\{[^}]*width:\s*min\(92vw,\s*48rem\)/s);
   assert.match(await readFile(new URL("../../public/plotter/ajrm-map-core.css", import.meta.url), "utf8"), /\[data-ajrm-map-help\]::after\{/);
   assert.doesNotMatch(app, /position:\s*["']topright["']/);
 });
