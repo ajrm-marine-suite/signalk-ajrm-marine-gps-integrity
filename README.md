@@ -1,6 +1,6 @@
 # AJRM Marine Navigation Integrity (GPS Integrity)
 
-Version `0.8.11` moves DR Plotter's GPS status badge to the upper right and
+Version `0.8.12` adopts the shared responsive chart-cycle banner. Version `0.8.11` moves DR Plotter's GPS status badge to the upper right and
 widens the centred chart-cycle banner so long chart names wrap less. Version `0.8.10` fixes DR Plotter so the basemap-only chart-cycle step actually
 removes the active automatic chart. Version `0.8.9` updates DR Plotter chart cycling to include an explicit
 basemap-only step. Version `0.8.8` packages the icon for both Signal K's App Store and installed
@@ -20,7 +20,7 @@ DR Plotter data files remain unchanged.
 
 ```bash
 cd ~/.signalk
-npm install git+https://github.com/ajrm-marine-suite/signalk-ajrm-marine-gps-integrity.git#v0.8.11 --omit=dev --no-package-lock
+npm install git+https://github.com/ajrm-marine-suite/signalk-ajrm-marine-gps-integrity.git#v0.8.12 --omit=dev --no-package-lock
 sudo systemctl restart signalk
 ```
 

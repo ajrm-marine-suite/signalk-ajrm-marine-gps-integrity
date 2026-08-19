@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.12
+
+- Update DR Plotter to shared map shell 0.7.11 so the widened chart-cycle
+  banner is maintained by the common chart UI rather than a local override.
+
 ## 0.8.11
 
 - Move the DR Plotter GPS status badge from the top-centre chart-message area

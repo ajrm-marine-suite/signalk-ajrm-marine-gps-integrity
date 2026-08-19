@@ -63,10 +63,6 @@ body {
   pointer-events: none;
 }
 
-.ajrm-map-chart-cycle-status {
-  width: min(92vw, 48rem);
-}
-
 .topbar {
   position: fixed;
   z-index: 1000;
