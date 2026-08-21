@@ -1,6 +1,7 @@
 # AJRM Marine Navigation Integrity (GPS Integrity)
 
-Version `0.8.12` adopts the shared responsive chart-cycle banner. Version `0.8.11` moves DR Plotter's GPS status badge to the upper right and
+Version `0.8.13` removes imports and default translation from the retired
+standalone Navigation Reference and DR Plotter packages. Version `0.8.13` removes import of retired standalone configuration while preserving the integrated Signal K contract. Version `0.8.12` adopts the shared responsive chart-cycle banner. Version `0.8.11` moves DR Plotter's GPS status badge to the upper right and
 widens the centred chart-cycle banner so long chart names wrap less. Version `0.8.10` fixes DR Plotter so the basemap-only chart-cycle step actually
 removes the active automatic chart. Version `0.8.9` updates DR Plotter chart cycling to include an explicit
 basemap-only step. Version `0.8.8` packages the icon for both Signal K's App Store and installed
@@ -13,22 +14,22 @@ shares the browser setting with Display, and centres the vessel when COG is
 unavailable.
 
 One Signal K package for source-aware Navigation Reference, GPS/GNSS trust,
-dead reckoning, and the charted DR Plotter. The established Signal K paths and
-DR Plotter data files remain unchanged.
+dead reckoning, and the charted DR Plotter. The established Signal K paths are
+the public contracts of these integrated components.
 
 ## Install
 
 ```bash
 cd ~/.signalk
-npm install git+https://github.com/ajrm-marine-suite/signalk-ajrm-marine-gps-integrity.git#v0.8.12 --omit=dev --no-package-lock
+npm install git+https://github.com/ajrm-marine-suite/signalk-ajrm-marine-gps-integrity.git#v0.8.13 --omit=dev --no-package-lock
 sudo systemctl restart signalk
 ```
 
 Enable **AJRM Marine Navigation Integrity** in Signal K. Navigation Reference
 is now its internal source-selection provider. Select **Open DR Plotter** from
-the status page for the charted dead-reckoning display. Existing standalone
-Navigation Reference settings and DR Plotter fixes, track, and settings are
-loaded from their previous files during migration.
+the status page for the charted dead-reckoning display. Configure both
+components only through this plugin; retired standalone package configuration
+is not read.
 
 DR Plotter also displays the route currently selected in **AJRM Marine
 Display**. The route is a read-only orange overlay in DR Plotter; opening,

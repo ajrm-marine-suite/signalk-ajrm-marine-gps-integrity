@@ -197,9 +197,8 @@ module.exports = function ajrmMarineNavigationReference(app, componentOptions = 
   };
 
   plugin.start = (pluginOptions = {}) => {
-    const migrated = migrateLegacyAgeDefaults(pluginOptions);
     options = {
-      ...migrated.options,
+      ...pluginOptions,
       ownSource: PLUGIN_ID,
       selfContexts: [
         "vessels.self",
@@ -207,15 +206,6 @@ module.exports = function ajrmMarineNavigationReference(app, componentOptions = 
       ].filter(Boolean),
     };
     resolver = createNavigationReferenceResolver(options);
-    if (!componentOptions.embedded && migrated.changed && typeof app.savePluginOptions === "function") {
-      app.savePluginOptions(migrated.options, (error) => {
-        if (error) {
-          if (!componentOptions.embedded) app.setPluginError?.(
-            `Could not persist 30-second GNSS age migration: ${error.message || error}`,
-          );
-        }
-      });
-    }
     deltaListener = (delta) => {
       if (!resolver) return;
       const accepted = resolver.ingestDelta(delta);
@@ -384,27 +374,3 @@ function normalizeSelfContext(selfId) {
   if (!value) return null;
   return value.startsWith("vessels.") ? value : `vessels.${value}`;
 }
-
-function migrateLegacyAgeDefaults(value = {}) {
-  const options = { ...value };
-  const legacyDefaults =
-    Number(options.positionMaxAgeSeconds) === 5 &&
-    Number(options.motionMaxAgeSeconds) === 5 &&
-    options.aisFallbackMaxAgeSeconds == null &&
-    options.trackProxyMaxAgeSeconds == null;
-  if (!legacyDefaults) return { options, changed: false };
-  return {
-    changed: true,
-    options: {
-      ...options,
-      positionMaxAgeSeconds: 30,
-      motionMaxAgeSeconds: 30,
-      aisFallbackMaxAgeSeconds: 45,
-      trackProxyMaxAgeSeconds: 5,
-    },
-  };
-}
-
-module.exports._private = {
-  migrateLegacyAgeDefaults,
-};

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.13
+
+- Removes runtime imports of retired standalone Navigation Reference and DR
+  Plotter configuration files and the obsolete five-second-default migration.
+- Keeps the integrated Navigation Reference Signal K path as the current
+  versioned contract.
+
 ## 0.8.12
 
 - Update DR Plotter to shared map shell 0.7.11 so the widened chart-cycle

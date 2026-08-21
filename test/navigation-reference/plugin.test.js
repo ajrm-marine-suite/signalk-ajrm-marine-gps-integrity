@@ -5,27 +5,6 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const createPlugin = require("../../plugin/components/navigation-reference");
 
-test("migrates the previous five-second defaults without overriding custom ages", () => {
-  const migrated = createPlugin._private.migrateLegacyAgeDefaults({
-    positionMaxAgeSeconds: 5,
-    motionMaxAgeSeconds: 5,
-    headingMaxAgeSeconds: 5,
-  });
-  assert.equal(migrated.changed, true);
-  assert.equal(migrated.options.positionMaxAgeSeconds, 30);
-  assert.equal(migrated.options.motionMaxAgeSeconds, 30);
-  assert.equal(migrated.options.aisFallbackMaxAgeSeconds, 45);
-  assert.equal(migrated.options.trackProxyMaxAgeSeconds, 5);
-
-  const custom = createPlugin._private.migrateLegacyAgeDefaults({
-    positionMaxAgeSeconds: 12,
-    motionMaxAgeSeconds: 8,
-  });
-  assert.equal(custom.changed, false);
-  assert.equal(custom.options.positionMaxAgeSeconds, 12);
-  assert.equal(custom.options.motionMaxAgeSeconds, 8);
-});
-
 test("plugin accepts the vessel's canonical self context and publishes v1 state", async () => {
   const signalk = new EventEmitter();
   const messages = [];

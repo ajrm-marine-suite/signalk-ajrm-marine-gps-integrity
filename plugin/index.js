@@ -4,9 +4,6 @@
 
 "use strict";
 
-const fs = require("node:fs");
-const os = require("node:os");
-const path = require("node:path");
 const packageInfo = require("../package.json");
 const openApi = require("./openApi.json");
 const { evaluateNavigationIntegrity } = require("./lib/navigation-integrity");
@@ -235,14 +232,8 @@ module.exports = function ajrmMarineGpsIntegrity(app) {
   plugin.start = (pluginOptions = {}) => {
     running = true;
     options = normalizeOptions(pluginOptions);
-    navigationReference.start(componentConfiguration(
-      pluginOptions.navigationReference,
-      "signalk-ajrm-marine-navigation-reference",
-    ));
-    drPlotter.start(componentConfiguration(
-      pluginOptions.drPlotter,
-      "signalk-ajrm-marine-dr-plotter",
-    ));
+    navigationReference.start(componentConfiguration(pluginOptions.navigationReference));
+    drPlotter.start(componentConfiguration(pluginOptions.drPlotter));
     publishProjectionMetadata();
     latestState = null;
     latestSample = null;
@@ -1419,24 +1410,8 @@ function prefixedRouter(router, prefix) {
   };
 }
 
-function componentConfiguration(value, legacyPluginId) {
-  if (value && typeof value === "object" && Object.keys(value).length > 0) {
-    return value;
-  }
-  const filePath = path.join(
-    os.homedir(),
-    ".signalk",
-    "plugin-config-data",
-    `${legacyPluginId}.json`,
-  );
-  try {
-    const document = JSON.parse(fs.readFileSync(filePath, "utf8"));
-    return document.configuration && typeof document.configuration === "object"
-      ? document.configuration
-      : document;
-  } catch {
-    return {};
-  }
+function componentConfiguration(value) {
+  return value && typeof value === "object" ? value : {};
 }
 
 module.exports._private = {
